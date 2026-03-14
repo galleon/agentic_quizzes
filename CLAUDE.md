@@ -50,4 +50,4 @@ outputs/reports/         # ingest/index run reports
 `chunk_id`, `source_file`, `document_title`, `page_or_section`, `document_date`, `topic_tags`, `language`, `hash`
 
 ## Quiz item fields
-`question_id`, `question_type`, `difficulty`, `question`, `choices`, `answer_index`, `rationale`, `supporting_chunk_ids`, `source_files`
+`question_id`, `question_type`, `difficulty`, `question`, `choices`, `answer_index`, `answer`, `rationale`, `supporting_chunk_ids`, `source_files`, `grounding_verdict`, `confidence_flag`

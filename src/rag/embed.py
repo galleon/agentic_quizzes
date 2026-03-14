@@ -36,7 +36,7 @@ def main() -> None:
             if (i + 1) % 10 == 0:
                 print(f"  {i + 1}/{len(lines)} chunks embedded")
 
-        chunk_file.write_text("\n".join(updated) + "\n", encoding="utf-8")
+        chunk_file.write_text("\n".join(updated) + "\n" if updated else "", encoding="utf-8")
         print(f"  Done: {len(updated)} chunks")
 
     print("Embedding complete.")

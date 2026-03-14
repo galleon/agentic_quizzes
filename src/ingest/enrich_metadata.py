@@ -24,7 +24,7 @@ def main() -> None:
             {
                 "stem": chunk_file.stem.replace(".chunks", ""),
                 "chunk_file": str(chunk_file.relative_to(root)),
-                "num_chunks": len(lines),
+                "num_chunks": sum(1 for line in lines if line.strip()),
                 "ingested_at": datetime.now().isoformat(),
             }
         )

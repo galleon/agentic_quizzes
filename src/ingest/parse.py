@@ -25,15 +25,22 @@ def parse_text(path: Path) -> str:
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+# Maps file extensions to their parser functions.
+# Keep in sync with IngestConfig.supported_extensions in src/common/config.py.
+_PARSERS = {
+    ".pdf": parse_pdf,
+    ".txt": parse_text,
+    ".md": parse_text,
+    ".html": parse_text,
+}
+
+
 def parse_file(path: Path) -> str:
-    ext = path.suffix.lower()
-    if ext == ".pdf":
-        return parse_pdf(path)
-    elif ext in (".txt", ".md", ".html"):
-        return parse_text(path)
-    else:
+    parser = _PARSERS.get(path.suffix.lower())
+    if parser is None:
         print(f"  [skip] unsupported extension: {path.suffix}", file=sys.stderr)
         return ""
+    return parser(path)
 
 
 def main() -> None:

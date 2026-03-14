@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import argparse
-import re
 from datetime import datetime
 from pathlib import Path
 
@@ -12,6 +11,7 @@ from pydantic import ValidationError
 from src.common.config import get_settings, project_root
 from src.common.models import Quiz, QuizItem
 from src.common.ollama_client import generate, parse_json_response
+from src.common.slug import make_slug
 from src.rag.retrieve import retrieve
 
 SYSTEM_PROMPT_PATH = Path(__file__).parent.parent.parent / "nanoclaw" / "prompts" / "quiz_system.md"
@@ -110,6 +110,23 @@ def generate_quiz(
         except ValidationError as exc:
             print(f"  Warning: item {i} failed validation, skipping: {exc.error_count()} error(s)")
             continue
+        # Post-parse semantic validation
+        if not item.question.strip():
+            print(f"  Warning: item {i} has empty question, skipping")
+            continue
+        if item.question_type == "mcq":
+            n_choices = len(item.choices or [])
+            if not item.choices or n_choices != 4:
+                print(f"  Warning: item {i} MCQ has {n_choices} choices (need 4), skipping")
+                continue
+            if item.answer_index is None or not (0 <= item.answer_index <= 3):
+                print(
+                    f"  Warning: item {i} MCQ invalid answer_index={item.answer_index!r}, skipping"
+                )
+                continue
+        elif not item.answer:
+            print(f"  Warning: item {i} {item.question_type!r} missing answer, skipping")
+            continue
         items.append(item)
 
     if len(items) > num_questions:
@@ -152,7 +169,7 @@ def main() -> None:
 
     out_dir = root / cfg.quiz.quizzes_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
+    slug = make_slug(args.topic)
     out_path = out_dir / f"{slug}.json"
     out_path.write_text(quiz.model_dump_json(indent=2), encoding="utf-8")
     print(f"Quiz saved: {out_path} ({len(quiz.items)} questions)")

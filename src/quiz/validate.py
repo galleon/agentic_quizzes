@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import argparse
-import re
 from pathlib import Path
 
 from src.common.config import get_settings, project_root
 from src.common.models import Quiz, QuizItem
 from src.common.ollama_client import generate, parse_json_response
+from src.common.slug import make_slug
 from src.rag.retrieve import retrieve
 
 SYSTEM_PROMPT_PATH = (
@@ -113,7 +113,7 @@ def main() -> None:
 
     cfg = get_settings()
     root = project_root()
-    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
+    slug = make_slug(args.topic)
     quiz_path = root / cfg.quiz.quizzes_dir / f"{slug}.json"
 
     if not quiz_path.exists():

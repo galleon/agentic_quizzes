@@ -4,10 +4,10 @@ from __future__ import annotations
 
 import argparse
 import csv
-import re
 
 from src.common.config import get_settings, project_root
 from src.common.models import Quiz
+from src.common.slug import make_slug
 
 
 def _choice_letter(idx: int) -> str:
@@ -91,7 +91,7 @@ def main() -> None:
 
     cfg = get_settings()
     root = project_root()
-    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
+    slug = make_slug(args.topic)
     quiz_path = root / cfg.quiz.quizzes_dir / f"{slug}.json"
 
     if not quiz_path.exists():

@@ -44,18 +44,25 @@ def _normalize_ws(text: str) -> str:
     return " ".join(text.split())
 
 
+_PAGE_MARKER_RE = re.compile(r"<!-- page \d+ -->")
+
+
 def infer_page(chunk_text: str, full_text: str, _normalized_haystack: str | None = None) -> str:
     """Attempt to find the page number nearest to this chunk in the source.
 
-    Both texts are whitespace-normalised before matching so that the
-    split()+join() chunking doesn't cause the lookup to fail.
+    Chunks are built from *cleaned* text (page markers removed), so the
+    haystack must also have markers stripped before matching; otherwise chunks
+    that span a page boundary will never match.  ``full_text`` (with markers)
+    is still used to scan backwards for the nearest ``<!-- page N -->`` tag.
 
-    Pass a precomputed ``_normalized_haystack`` to avoid recomputing
-    ``_normalize_ws(full_text)`` on every call (O(1) vs O(n) per chunk).
+    Pass a precomputed ``_normalized_haystack`` (marker-stripped + ws-normalised)
+    to avoid recomputing it on every call (O(1) vs O(n) per chunk).
     """
     needle = _normalize_ws(chunk_text[:80])
     haystack = (
-        _normalized_haystack if _normalized_haystack is not None else _normalize_ws(full_text)
+        _normalized_haystack
+        if _normalized_haystack is not None
+        else _normalize_ws(_PAGE_MARKER_RE.sub("", full_text))
     )
     idx = haystack.find(needle)
     if idx == -1:
@@ -90,7 +97,8 @@ def main() -> None:
 
         title = _extract_title(text, fallback=f.stem)
         raw_chunks = chunk_text(text, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap)
-        normalized_raw = _normalize_ws(raw_text)
+        # Strip page markers before normalising so cleaned chunks match across page boundaries
+        normalized_raw = _normalize_ws(_PAGE_MARKER_RE.sub("", raw_text))
 
         chunks: list[dict] = []
         for i, chunk_str in enumerate(raw_chunks):

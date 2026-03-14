@@ -37,7 +37,7 @@ def main() -> None:
     root = project_root()
     chunks_dir = root / cfg.ingest.chunks_dir
 
-    chunk_files = list(chunks_dir.glob("*.chunks.jsonl"))
+    chunk_files = list(chunks_dir.rglob("*.chunks.jsonl"))
     if not chunk_files:
         print("No chunk files found.", file=sys.stderr)
         sys.exit(1)
@@ -80,13 +80,9 @@ def main() -> None:
         if points:
             client.upsert(collection_name=cfg.qdrant.collection, points=points)
             total_upserted += len(points)
-            print(
-                f"Indexed: {chunk_file.name} → {len(points)} points"
-                f" ({skipped} skipped, no embedding)"
-            )
-            report_lines.append(
-                f"- `{chunk_file.name}`: {len(points)} indexed, {skipped} skipped\n"
-            )
+            rel = chunk_file.relative_to(chunks_dir)
+            print(f"Indexed: {rel} → {len(points)} points ({skipped} skipped, no embedding)")
+            report_lines.append(f"- `{rel}`: {len(points)} indexed, {skipped} skipped\n")
 
     report_lines.append(f"\n**Total upserted**: {total_upserted}\n")
     reports_dir = root / cfg.quiz.reports_dir

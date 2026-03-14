@@ -128,7 +128,7 @@ def main() -> None:
                 fh.write(json.dumps(c) + "\n")
 
         total_chunks += len(chunks)
-        print(f"Chunked: {f.name} → {len(chunks)} chunks")
+        print(f"Chunked: {rel} → {len(chunks)} chunks")
 
     print(f"Done. {total_chunks} total chunks written to {out_dir}")
 

@@ -14,13 +14,13 @@ def main() -> None:
     root = project_root()
     chunks_dir = root / cfg.ingest.chunks_dir
 
-    chunk_files = list(chunks_dir.glob("*.chunks.jsonl"))
+    chunk_files = list(chunks_dir.rglob("*.chunks.jsonl"))
     if not chunk_files:
         print("No chunk files found. Run ingest pipeline first.", file=sys.stderr)
         sys.exit(1)
 
     for chunk_file in chunk_files:
-        print(f"Embedding: {chunk_file.name}")
+        print(f"Embedding: {chunk_file.relative_to(chunks_dir)}")
         lines = chunk_file.read_text(encoding="utf-8").splitlines()
         updated = []
         for i, line in enumerate(lines):

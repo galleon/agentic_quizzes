@@ -61,7 +61,7 @@ def main() -> None:
     ok, skipped = 0, 0
 
     for src_file in files:
-        print(f"Parsing: {src_file.name}")
+        print(f"Parsing: {src_file.relative_to(raw_dir)}")
         text = parse_file(src_file)
         if not text:
             skipped += 1

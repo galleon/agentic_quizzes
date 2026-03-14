@@ -41,4 +41,3 @@ quiz:
   default_difficulty: "medium"          # easy | medium | hard
   default_question_types: ["mcq", "short_answer", "true_false"]
   top_k_chunks: 6                       # retrieved chunks per query
-  min_confidence_chunks: 2             # minimum chunks needed to accept a question

@@ -108,9 +108,9 @@ def main() -> None:
     if "md" in args.formats:
         md = to_markdown(quiz)
         out = quizzes_dir / f"{slug}.md"
-        out.write_text(md)
+        out.write_text(md, encoding="utf-8")
         key_out = keys_dir / f"{slug}_key.md"
-        key_out.write_text(to_answer_key(quiz))
+        key_out.write_text(to_answer_key(quiz), encoding="utf-8")
         print(f"Markdown: {out}")
         print(f"Answer key: {key_out}")
 
@@ -133,7 +133,9 @@ def main() -> None:
     for n, item in enumerate((i for i in quiz.items if i.confidence_flag != "rejected"), 1):
         chunks_str = ", ".join(item.supporting_chunk_ids)
         rationale_lines.append(f"{n}. {item.rationale}  (chunks: {chunks_str})\n")
-    (rationales_dir / f"{slug}_rationales.md").write_text("".join(rationale_lines))
+    (rationales_dir / f"{slug}_rationales.md").write_text(
+        "".join(rationale_lines), encoding="utf-8"
+    )
     print(f"Rationales: {rationales_dir / f'{slug}_rationales.md'}")
 
 

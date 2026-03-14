@@ -14,7 +14,7 @@ def retrieve(
 ) -> list[dict]:
     """Return top-k payload dicts (including 'text') for a query string."""
     cfg = get_settings()
-    top_k = top_k or cfg.quiz.top_k_chunks
+    top_k = cfg.quiz.top_k_chunks if top_k is None else top_k
     client = get_client(cfg)
 
     query_vec = embed(query)

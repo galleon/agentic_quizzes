@@ -25,7 +25,7 @@ def main() -> None:
                 "stem": chunk_file.stem.replace(".chunks", ""),
                 "chunk_file": str(chunk_file.relative_to(root)),
                 "num_chunks": len(lines),
-                "indexed_at": datetime.now().isoformat(),
+                "ingested_at": datetime.now().isoformat(),
             }
         )
 

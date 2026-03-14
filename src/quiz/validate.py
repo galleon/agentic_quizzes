@@ -112,12 +112,12 @@ def main() -> None:
     if not quiz_path.exists():
         raise FileNotFoundError(f"Quiz not found: {quiz_path}")
 
-    quiz = Quiz.model_validate_json(quiz_path.read_text())
+    quiz = Quiz.model_validate_json(quiz_path.read_text(encoding="utf-8"))
     print(f"Validating {len(quiz.items)} questions for topic: {quiz.topic!r}")
     quiz = validate_quiz(quiz)
 
     # Overwrite with verdicts
-    quiz_path.write_text(quiz.model_dump_json(indent=2))
+    quiz_path.write_text(quiz.model_dump_json(indent=2), encoding="utf-8")
     rejected = sum(1 for i in quiz.items if i.confidence_flag == "rejected")
     print(f"Validation done. {rejected}/{len(quiz.items)} questions rejected.")
 

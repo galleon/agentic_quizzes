@@ -135,9 +135,9 @@ def main() -> None:
     root = project_root()
     quiz = generate_quiz(
         topic=args.topic,
-        num_questions=args.num or cfg.quiz.default_num_questions,
-        difficulty=args.difficulty or cfg.quiz.default_difficulty,
-        question_types=args.types or cfg.quiz.default_question_types,
+        num_questions=cfg.quiz.default_num_questions if args.num is None else args.num,
+        difficulty=cfg.quiz.default_difficulty if args.difficulty is None else args.difficulty,
+        question_types=cfg.quiz.default_question_types if args.types is None else args.types,
         source_filter=args.sources,
     )
 
@@ -145,7 +145,7 @@ def main() -> None:
     out_dir.mkdir(parents=True, exist_ok=True)
     slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
     out_path = out_dir / f"{slug}.json"
-    out_path.write_text(quiz.model_dump_json(indent=2))
+    out_path.write_text(quiz.model_dump_json(indent=2), encoding="utf-8")
     print(f"Quiz saved: {out_path} ({len(quiz.items)} questions)")
 
 

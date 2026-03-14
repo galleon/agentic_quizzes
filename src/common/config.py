@@ -60,7 +60,6 @@ class QuizConfig(BaseModel):
         default_factory=lambda: ["mcq", "short_answer", "true_false"]
     )
     top_k_chunks: int = 6
-    min_confidence_chunks: int = 2
 
 
 class Settings(BaseModel):

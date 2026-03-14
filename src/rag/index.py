@@ -91,7 +91,7 @@ def main() -> None:
     report_lines.append(f"\n**Total upserted**: {total_upserted}\n")
     reports_dir = root / cfg.quiz.reports_dir
     reports_dir.mkdir(parents=True, exist_ok=True)
-    (reports_dir / "index_report.md").write_text("".join(report_lines))
+    (reports_dir / "index_report.md").write_text("".join(report_lines), encoding="utf-8")
     print(f"Indexing complete. {total_upserted} points in collection '{cfg.qdrant.collection}'.")
 
 

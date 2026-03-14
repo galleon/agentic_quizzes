@@ -53,10 +53,14 @@ def generate(
 
     try:
         response = _client().chat(**call_kwargs)
-    except TypeError:
-        # Older ollama clients (< 0.4.4) don't accept the `think` kwarg;
-        # retry without it so the call still succeeds.
-        call_kwargs.pop("think", None)
+    except TypeError as exc:
+        # Older ollama clients (< 0.4.4) don't accept the `think` kwarg.
+        # Only swallow the error when `think` was actually passed and the
+        # message points to an unexpected keyword argument; re-raise otherwise
+        # so genuine programming errors are not masked.
+        if "think" not in call_kwargs or "unexpected keyword argument" not in str(exc):
+            raise
+        call_kwargs.pop("think")
         response = _client().chat(**call_kwargs)
     content = response["message"]["content"]
     return _strip_think_tags(content)

@@ -49,33 +49,34 @@ def main() -> None:
     report_lines = [f"# Index Report\n\nRun: {datetime.now().isoformat()}\n\n"]
 
     for chunk_file in chunk_files:
-        lines = chunk_file.read_text(encoding="utf-8").splitlines()
         points = []
         skipped = 0
-        for line in lines:
-            if not line.strip():
-                continue
-            chunk = json.loads(line)
-            if not chunk.get("embedding"):
-                skipped += 1
-                continue
-            meta = chunk["metadata"]
-            point = PointStruct(
-                id=meta["chunk_id"],
-                vector=chunk["embedding"],
-                payload={
-                    "text": chunk["text"],
-                    "source_file": meta["source_file"],
-                    "document_title": meta["document_title"],
-                    "page_or_section": meta["page_or_section"],
-                    "document_date": meta.get("document_date", ""),
-                    "topic_tags": meta.get("topic_tags", []),
-                    "language": meta.get("language", "en"),
-                    "hash": meta.get("hash", ""),
-                    "chunk_id": meta["chunk_id"],
-                },
-            )
-            points.append(point)
+        # Stream line-by-line to keep memory bounded for large chunk files.
+        with chunk_file.open(encoding="utf-8") as fh:
+            for line in fh:
+                if not line.strip():
+                    continue
+                chunk = json.loads(line)
+                if not chunk.get("embedding"):
+                    skipped += 1
+                    continue
+                meta = chunk["metadata"]
+                point = PointStruct(
+                    id=meta["chunk_id"],
+                    vector=chunk["embedding"],
+                    payload={
+                        "text": chunk["text"],
+                        "source_file": meta["source_file"],
+                        "document_title": meta["document_title"],
+                        "page_or_section": meta.get("page_or_section", ""),
+                        "document_date": meta.get("document_date", ""),
+                        "topic_tags": meta.get("topic_tags", []),
+                        "language": meta.get("language", "en"),
+                        "hash": meta.get("hash", ""),
+                        "chunk_id": meta["chunk_id"],
+                    },
+                )
+                points.append(point)
 
         if points:
             client.upsert(collection_name=cfg.qdrant.collection, points=points)

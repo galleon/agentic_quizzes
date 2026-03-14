@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import json
 import sys
+import tempfile
+from pathlib import Path
 
 from src.common.config import get_settings, project_root
 from src.common.ollama_client import embed
@@ -21,23 +23,27 @@ def main() -> None:
 
     for chunk_file in chunk_files:
         print(f"Embedding: {chunk_file.relative_to(chunks_dir)}")
-        lines = chunk_file.read_text(encoding="utf-8").splitlines()
-        updated = []
-        for i, line in enumerate(lines):
-            if not line.strip():
-                continue
-            chunk = json.loads(line)
-            if chunk.get("embedding"):
-                updated.append(line)
-                continue
-            vec = embed(chunk["text"])
-            chunk["embedding"] = vec
-            updated.append(json.dumps(chunk))
-            if (i + 1) % 10 == 0:
-                print(f"  {i + 1}/{len(lines)} chunks embedded")
-
-        chunk_file.write_text("\n".join(updated) + "\n" if updated else "", encoding="utf-8")
-        print(f"  Done: {len(updated)} chunks")
+        count = 0
+        # Stream line-by-line through a temp file to keep memory bounded and
+        # avoid partial-file corruption if the process is interrupted.
+        tmp = Path(tempfile.mktemp(dir=chunk_file.parent, suffix=".tmp"))
+        try:
+            with chunk_file.open(encoding="utf-8") as src, tmp.open("w", encoding="utf-8") as dst:
+                for i, line in enumerate(src):
+                    if not line.strip():
+                        continue
+                    chunk = json.loads(line)
+                    if not chunk.get("embedding"):
+                        chunk["embedding"] = embed(chunk["text"])
+                        if (i + 1) % 10 == 0:
+                            print(f"  {i + 1} chunks processed")
+                    dst.write(json.dumps(chunk) + "\n")
+                    count += 1
+            tmp.replace(chunk_file)
+        except Exception:
+            tmp.unlink(missing_ok=True)
+            raise
+        print(f"  Done: {count} chunks")
 
     print("Embedding complete.")
 

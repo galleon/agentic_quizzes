@@ -50,7 +50,10 @@ def main() -> None:
     out_dir = root / cfg.ingest.extracted_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    supported = set(cfg.ingest.supported_extensions)
+    # Derive supported extensions from _PARSERS to keep config and
+    # implementation in sync; cfg.ingest.supported_extensions is used for
+    # documentation/defaults but the actual parsers are the source of truth.
+    supported = set(_PARSERS.keys())
     files = [p for p in raw_dir.rglob("*") if p.is_file() and p.suffix.lower() in supported]
 
     if not files:

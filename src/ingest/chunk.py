@@ -109,7 +109,7 @@ def main() -> None:
             # source_filter queries, and reporting.
             rel = f.relative_to(in_dir)
             meta = ChunkMetadata(
-                source_file=str(rel),
+                source_file=rel.as_posix(),
                 document_title=title,
                 page_or_section=f"page {page}" if page else f"chunk {i + 1}",
                 topic_tags=[],

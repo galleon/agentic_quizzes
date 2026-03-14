@@ -37,7 +37,10 @@ def main() -> None:
     root = project_root()
     chunks_dir = root / cfg.ingest.chunks_dir
 
-    chunk_files = list(chunks_dir.rglob("*.chunks.jsonl"))
+    chunk_files = sorted(
+        chunks_dir.rglob("*.chunks.jsonl"),
+        key=lambda p: p.relative_to(chunks_dir).as_posix(),
+    )
     if not chunk_files:
         print("No chunk files found.", file=sys.stderr)
         sys.exit(1)
@@ -99,6 +102,12 @@ def main() -> None:
     reports_dir.mkdir(parents=True, exist_ok=True)
     (reports_dir / "index_report.md").write_text("".join(report_lines), encoding="utf-8")
     print(f"Indexing complete. {total_upserted} points in collection '{cfg.qdrant.collection}'.")
+    if total_upserted == 0:
+        print(
+            "No points indexed — run embed.py before index.py, or check for embedding errors.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 if __name__ == "__main__":

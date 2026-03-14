@@ -129,7 +129,7 @@ def test_chunk_source_file_stores_relative_path(tmp_path):
 
     for chunk_str in raw_chunks:
         meta = ChunkMetadata(
-            source_file=str(rel),
+            source_file=rel.as_posix(),
             document_title="Test",
             hash=hashlib.sha256(chunk_str.encode()).hexdigest()[:16],
         )
@@ -147,7 +147,7 @@ def test_chunk_source_file_distinguishes_same_basename(tmp_path):
         f = cleaned_dir / sub / "foo_txt.txt"
         f.write_text(f"content from {sub} " * 5, encoding="utf-8")
         rel = f.relative_to(cleaned_dir)
-        source_files_seen.add(str(rel))
+        source_files_seen.add(rel.as_posix())
 
     assert len(source_files_seen) == 2
     assert "a/foo_txt.txt" in source_files_seen
@@ -173,7 +173,7 @@ def test_chunk_output_paths_no_collision_same_stem_different_subdir(tmp_path):
         with out_path.open("w", encoding="utf-8") as fh:
             for chunk_str in raw_chunks:
                 meta = ChunkMetadata(
-                    source_file=str(rel),
+                    source_file=rel.as_posix(),
                     document_title="T",
                     hash=hashlib.sha256(chunk_str.encode()).hexdigest()[:16],
                 )

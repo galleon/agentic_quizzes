@@ -83,7 +83,7 @@ def main() -> None:
     # Also read the extracted dir to get page markers for provenance
     extracted_dir = root / cfg.ingest.extracted_dir
 
-    files = list(in_dir.rglob("*.txt"))
+    files = sorted(in_dir.rglob("*.txt"), key=lambda p: p.relative_to(in_dir).as_posix())
     if not files:
         print("No cleaned files found. Run clean.py first.", file=sys.stderr)
         sys.exit(1)

@@ -31,7 +31,7 @@ def main() -> None:
     out_dir = root / cfg.ingest.cleaned_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    files = list(in_dir.rglob("*.txt"))
+    files = sorted(in_dir.rglob("*.txt"), key=lambda p: p.relative_to(in_dir).as_posix())
     if not files:
         print("No extracted files found. Run parse.py first.", file=sys.stderr)
         sys.exit(1)

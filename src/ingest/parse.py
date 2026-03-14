@@ -54,7 +54,10 @@ def main() -> None:
     # implementation in sync; cfg.ingest.supported_extensions is used for
     # documentation/defaults but the actual parsers are the source of truth.
     supported = set(_PARSERS.keys())
-    files = [p for p in raw_dir.rglob("*") if p.is_file() and p.suffix.lower() in supported]
+    files = sorted(
+        (p for p in raw_dir.rglob("*") if p.is_file() and p.suffix.lower() in supported),
+        key=lambda p: p.relative_to(raw_dir).as_posix(),
+    )
 
     if not files:
         print(f"No supported files found in {raw_dir}. Nothing to parse.", file=sys.stderr)

@@ -8,9 +8,12 @@ Generates grounded quizzes from source documents using local LLMs (Ollama) and Q
 # Install Python deps
 uv sync --group dev
 
-# Pull Ollama models
+# Start Ollama (if not already running)
+ollama serve &
+
+# Pull required models
 ollama pull nomic-embed-text        # embeddings
-ollama pull qwen3.5-no-think:latest # generation (already on disk)
+ollama pull qwen3.5-no-think:latest # generation
 
 # Optional: create the no-think variant yourself
 ollama create qwen3-nothink -f nanoclaw/config/modelfile_qwen3_nothink.txt
@@ -19,19 +22,37 @@ ollama create qwen3-nothink -f nanoclaw/config/modelfile_qwen3_nothink.txt
 ## Quick start
 
 ```bash
-# 1. Ingest source documents
-bash nanoclaw/tasks/ingest.sh
+# Ensure Ollama is running
+ollama serve &
 
-# 2. Build vector index
-bash nanoclaw/tasks/build_index.sh
+# Full pipeline in one command (uses default topic/num/difficulty)
+make all TOPIC="GPU monitoring with DCGM" NUM=10 DIFFICULTY=medium
+```
 
-# 3. Generate quiz
-bash nanoclaw/tasks/generate_quiz.sh "GPU monitoring with DCGM" 10 medium
+Or step by step:
 
-# Outputs:
-#   outputs/quizzes/gpu_monitoring_with_dcgm.{md,json,csv}
-#   outputs/answer_keys/gpu_monitoring_with_dcgm_key.md
-#   outputs/rationales/gpu_monitoring_with_dcgm_rationales.md
+```bash
+make ingest                                          # parse → clean → chunk → manifest
+make index                                           # embed → upsert to Qdrant
+make quiz TOPIC="GPU monitoring with DCGM"           # generate → validate → export
+```
+
+Outputs land under `outputs/` with a slug derived from the topic:
+```
+outputs/quizzes/<slug>.{md,json,csv}
+outputs/answer_keys/<slug>_key.md
+outputs/rationales/<slug>_rationales.md
+```
+
+> The slug includes a short hash of the topic to prevent filename collisions
+> (e.g. `gpu_monitoring_with_dcgm_a1b2c3d4`).
+
+### Other useful targets
+
+```bash
+make eval  TOPIC="GPU monitoring with DCGM"   # re-validate an existing quiz
+make clean                                     # wipe all generated artifacts, keep data/raw/
+make help                                      # list all targets and defaults
 ```
 
 ## Configuration

@@ -24,11 +24,12 @@ def main() -> None:
     for chunk_file in chunk_files:
         print(f"Embedding: {chunk_file.relative_to(chunks_dir)}")
         count = 0
-        # Stream line-by-line through a temp file to keep memory bounded and
-        # avoid partial-file corruption if the process is interrupted.
-        tmp = Path(tempfile.mktemp(dir=chunk_file.parent, suffix=".tmp"))
+        # Stream line-by-line through an atomically-created temp file to keep
+        # memory bounded and avoid partial-file corruption on interrupt.
+        fd, tmp_path = tempfile.mkstemp(dir=chunk_file.parent, suffix=".tmp")
+        tmp = Path(tmp_path)
         try:
-            with chunk_file.open(encoding="utf-8") as src, tmp.open("w", encoding="utf-8") as dst:
+            with chunk_file.open(encoding="utf-8") as src, open(fd, "w", encoding="utf-8") as dst:
                 for i, line in enumerate(src):
                     if not line.strip():
                         continue

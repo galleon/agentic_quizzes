@@ -48,10 +48,13 @@ def main() -> None:
     total_upserted = 0
     report_lines = [f"# Index Report\n\nRun: {datetime.now().isoformat()}\n\n"]
 
+    batch_size = 100
     for chunk_file in chunk_files:
-        points = []
+        batch: list[PointStruct] = []
+        file_total = 0
         skipped = 0
-        # Stream line-by-line to keep memory bounded for large chunk files.
+        rel = chunk_file.relative_to(chunks_dir)
+        # Stream and upsert in batches to keep memory bounded for large files.
         with chunk_file.open(encoding="utf-8") as fh:
             for line in fh:
                 if not line.strip():
@@ -61,29 +64,35 @@ def main() -> None:
                     skipped += 1
                     continue
                 meta = chunk["metadata"]
-                point = PointStruct(
-                    id=meta["chunk_id"],
-                    vector=chunk["embedding"],
-                    payload={
-                        "text": chunk["text"],
-                        "source_file": meta["source_file"],
-                        "document_title": meta["document_title"],
-                        "page_or_section": meta.get("page_or_section", ""),
-                        "document_date": meta.get("document_date", ""),
-                        "topic_tags": meta.get("topic_tags", []),
-                        "language": meta.get("language", "en"),
-                        "hash": meta.get("hash", ""),
-                        "chunk_id": meta["chunk_id"],
-                    },
+                batch.append(
+                    PointStruct(
+                        id=meta["chunk_id"],
+                        vector=chunk["embedding"],
+                        payload={
+                            "text": chunk["text"],
+                            "source_file": meta["source_file"],
+                            "document_title": meta["document_title"],
+                            "page_or_section": meta.get("page_or_section", ""),
+                            "document_date": meta.get("document_date", ""),
+                            "topic_tags": meta.get("topic_tags", []),
+                            "language": meta.get("language", "en"),
+                            "hash": meta.get("hash", ""),
+                            "chunk_id": meta["chunk_id"],
+                        },
+                    )
                 )
-                points.append(point)
+                if len(batch) >= batch_size:
+                    client.upsert(collection_name=cfg.qdrant.collection, points=batch)
+                    file_total += len(batch)
+                    batch = []
+            if batch:
+                client.upsert(collection_name=cfg.qdrant.collection, points=batch)
+                file_total += len(batch)
 
-        if points:
-            client.upsert(collection_name=cfg.qdrant.collection, points=points)
-            total_upserted += len(points)
-            rel = chunk_file.relative_to(chunks_dir)
-            print(f"Indexed: {rel} → {len(points)} points ({skipped} skipped, no embedding)")
-            report_lines.append(f"- `{rel}`: {len(points)} indexed, {skipped} skipped\n")
+        if file_total:
+            total_upserted += file_total
+            print(f"Indexed: {rel} → {file_total} points ({skipped} skipped, no embedding)")
+            report_lines.append(f"- `{rel}`: {file_total} indexed, {skipped} skipped\n")
 
     report_lines.append(f"\n**Total upserted**: {total_upserted}\n")
     reports_dir = root / cfg.quiz.reports_dir

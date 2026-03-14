@@ -104,8 +104,12 @@ def main() -> None:
         for i, chunk_str in enumerate(raw_chunks):
             page = infer_page(chunk_str, raw_text, normalized_raw)
             content_hash = hashlib.sha256(chunk_str.encode()).hexdigest()[:16]
+            # Use relative path as source_file so same-named files in
+            # different subdirectories remain distinguishable in metadata,
+            # source_filter queries, and reporting.
+            rel = f.relative_to(in_dir)
             meta = ChunkMetadata(
-                source_file=f.name,
+                source_file=str(rel),
                 document_title=title,
                 page_or_section=f"page {page}" if page else f"chunk {i + 1}",
                 topic_tags=[],
@@ -114,7 +118,11 @@ def main() -> None:
             chunk = Chunk(metadata=meta, text=chunk_str)
             chunks.append(chunk.model_dump(exclude={"embedding"}))
 
-        out_path = out_dir / (f.stem + ".chunks.jsonl")
+        # Mirror subdirectory structure so same-stem files in different
+        # subdirectories don't overwrite each other's chunk file.
+        rel = f.relative_to(in_dir)
+        out_path = out_dir / rel.parent / (f.stem + ".chunks.jsonl")
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         with out_path.open("w", encoding="utf-8") as fh:
             for c in chunks:
                 fh.write(json.dumps(c) + "\n")

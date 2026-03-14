@@ -30,7 +30,7 @@ def chunk_text(
     chunk_size: int = 512,
     overlap: int = 64,
 ) -> list[str]:
-    """Split text into overlapping chunks of approximately chunk_size tokens."""
+    """Split text into overlapping chunks of approximately chunk_size words."""
     words = text.split()
     chunks = []
     step = max(1, chunk_size - overlap)

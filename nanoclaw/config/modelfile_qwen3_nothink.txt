@@ -15,5 +15,5 @@ Output JSON when asked for structured data."""
 PARAMETER temperature 0.2
 PARAMETER top_p 0.9
 PARAMETER top_k 20
-PARAMETER num_predict 600
+PARAMETER num_predict 4096
 PARAMETER repeat_penalty 1.1

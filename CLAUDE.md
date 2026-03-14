@@ -22,8 +22,8 @@ Generates grounded quizzes from source documents using local LLMs via Ollama + Q
 ```bash
 bash nanoclaw/tasks/ingest.sh
 bash nanoclaw/tasks/build_index.sh
-bash nanoclaw/tasks/generate_quiz.sh --topic "GPU monitoring"
-bash nanoclaw/tasks/eval_quiz.sh
+bash nanoclaw/tasks/generate_quiz.sh "GPU monitoring" 10 medium
+bash nanoclaw/tasks/eval_quiz.sh "GPU monitoring"
 ```
 
 ## Pipeline overview

@@ -48,9 +48,14 @@ def validate_quiz(quiz: Quiz) -> Quiz:
     system = _load_system_prompt()
     validated_items = []
 
+    source_filter = quiz.source_scope if quiz.source_scope else None
     for item in quiz.items:
-        # Re-retrieve chunks relevant to this specific question
-        chunks = retrieve(item.question, top_k=cfg.quiz.top_k_chunks)
+        # Re-retrieve within the same scope used during generation
+        chunks = retrieve(
+            item.question,
+            top_k=cfg.quiz.top_k_chunks,
+            source_filter=source_filter,
+        )
         prompt = _build_validate_prompt(item, chunks)
         raw = generate(prompt, system=system)
 

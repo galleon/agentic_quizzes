@@ -34,4 +34,4 @@ python -m src.quiz.export   --topic "GPU monitoring" --formats md json csv
 LLM verbosity controls (see `nanoclaw/config/settings.yaml`):
 - `think: false` — disables Qwen3 chain-of-thought
 - `temperature: 0.2` — low randomness for factual output
-- `num_predict: 600` — caps response length
+- `num_predict: 4096` — allows complete JSON quiz output

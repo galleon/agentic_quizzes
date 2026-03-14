@@ -43,8 +43,12 @@ def to_answer_key(quiz: Quiz) -> str:
     lines = [f"# Answer Key: {quiz.topic}\n\n"]
     accepted = [i for i in quiz.items if i.confidence_flag != "rejected"]
     for n, item in enumerate(accepted, 1):
-        if item.question_type == "mcq" and item.answer_index is not None:
-            choices = item.choices or []
+        choices = item.choices or []
+        if (
+            item.question_type == "mcq"
+            and item.answer_index is not None
+            and 0 <= item.answer_index < len(choices)
+        ):
             answer = f"{_choice_letter(item.answer_index)}) {choices[item.answer_index]}"
         else:
             answer = item.answer or "N/A"

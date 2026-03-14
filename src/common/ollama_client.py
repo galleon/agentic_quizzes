@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import re
+from functools import lru_cache
 from typing import Any
 
 import ollama
@@ -14,6 +15,12 @@ from src.common.config import get_settings
 def _strip_think_tags(text: str) -> str:
     """Remove <think>...</think> blocks that Qwen3 may emit even with think=False."""
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
+
+
+@lru_cache(maxsize=1)
+def _client() -> ollama.Client:
+    """Return a cached Ollama client pointed at the configured base_url."""
+    return ollama.Client(host=get_settings().ollama.base_url)
 
 
 def generate(
@@ -44,7 +51,7 @@ def generate(
     if "qwen3" in model.lower():
         call_kwargs["think"] = think
 
-    response = ollama.chat(**call_kwargs)
+    response = _client().chat(**call_kwargs)
     content = response["message"]["content"]
     return _strip_think_tags(content)
 
@@ -53,7 +60,7 @@ def embed(text: str, model: str | None = None) -> list[float]:
     """Compute an embedding vector for the given text."""
     cfg = get_settings().ollama
     model = model or cfg.embedding_model
-    response = ollama.embeddings(model=model, prompt=text)
+    response = _client().embeddings(model=model, prompt=text)
     return response["embedding"]
 
 

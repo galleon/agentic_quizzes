@@ -1,0 +1,19 @@
+# Ollama Modelfile: create a qwen3-nothink variant that disables thinking by default.
+# Usage:
+#   ollama create qwen3-nothink -f nanoclaw/config/modelfile_qwen3_nothink.txt
+#   Then set generation_model: "qwen3-nothink" in settings.yaml
+
+FROM qwen3:latest
+
+# Bake /no_think into the system prompt so chain-of-thought is off by default.
+# The user can still override per-message with /think if needed.
+SYSTEM """You are a helpful assistant. /no_think
+Do not output chain-of-thought. Keep answers concise and factual.
+Output JSON when asked for structured data."""
+
+# Conservative generation params for factual quiz work
+PARAMETER temperature 0.2
+PARAMETER top_p 0.9
+PARAMETER top_k 20
+PARAMETER num_predict 600
+PARAMETER repeat_penalty 1.1

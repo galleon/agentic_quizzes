@@ -1,0 +1,17 @@
+model:
+  provider: openai
+  model: qwen3.5-no-think:latest
+  base_url: http://localhost:11434/v1
+  api_key: local-token
+
+agent:
+  max_steps: 40
+  temperature: 0.2
+
+workspace:
+  root: .
+
+tools:
+  shell: true
+  file_edit: true
+  file_read: true

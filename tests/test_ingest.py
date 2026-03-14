@@ -125,6 +125,13 @@ def test_parse_json_response_with_preamble():
     assert parse_json_response(raw) == {"answer": 42}
 
 
+def test_parse_json_response_with_trailing_text():
+    from src.common.ollama_client import parse_json_response
+
+    raw = '{"verdict": "supported"} some trailing explanation the model added'
+    assert parse_json_response(raw) == {"verdict": "supported"}
+
+
 def test_parse_json_response_invalid_raises():
     from src.common.ollama_client import parse_json_response
 

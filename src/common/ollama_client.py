@@ -51,7 +51,13 @@ def generate(
     if "qwen3" in model.lower():
         call_kwargs["think"] = think
 
-    response = _client().chat(**call_kwargs)
+    try:
+        response = _client().chat(**call_kwargs)
+    except TypeError:
+        # Older ollama clients (< 0.4.4) don't accept the `think` kwarg;
+        # retry without it so the call still succeeds.
+        call_kwargs.pop("think", None)
+        response = _client().chat(**call_kwargs)
     content = response["message"]["content"]
     return _strip_think_tags(content)
 
@@ -84,12 +90,14 @@ def parse_json_response(raw: str) -> Any:
             return json.loads(fence_match.group(1))
         except json.JSONDecodeError:
             pass
-    # Fallback: find first [ or { and try from there
-    for start_char, end_char in [("[", "]"), ("{", "}")]:
+    # Fallback: use raw_decode to extract the first JSON value even with trailing text
+    decoder = json.JSONDecoder()
+    for start_char in ("[", "{"):
         idx = raw.find(start_char)
         if idx != -1:
             try:
-                return json.loads(raw[idx:])
+                obj, _ = decoder.raw_decode(raw, idx)
+                return obj
             except json.JSONDecodeError:
                 pass
     raise ValueError(f"Could not parse JSON from model response:\n{raw[:400]}")

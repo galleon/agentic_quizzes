@@ -97,7 +97,7 @@ def main() -> None:
     if not quiz_path.exists():
         raise FileNotFoundError(f"Quiz not found: {quiz_path}")
 
-    quiz = Quiz.model_validate_json(quiz_path.read_text())
+    quiz = Quiz.model_validate_json(quiz_path.read_text(encoding="utf-8"))
 
     quizzes_dir = root / cfg.quiz.quizzes_dir
     keys_dir = root / cfg.quiz.answer_keys_dir

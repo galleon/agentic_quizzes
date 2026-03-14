@@ -84,7 +84,7 @@ def get_settings() -> Settings:
     root = _find_project_root()
     config_path = root / "nanoclaw" / "config" / "settings.yaml"
     if config_path.exists():
-        data = yaml.safe_load(config_path.read_text())
+        data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         return Settings.model_validate(data or {})
     return Settings()
 

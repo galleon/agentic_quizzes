@@ -46,6 +46,10 @@ def main() -> None:
     supported = set(cfg.ingest.supported_extensions)
     files = [p for p in raw_dir.rglob("*") if p.is_file() and p.suffix.lower() in supported]
 
+    if not files:
+        print(f"No supported files found in {raw_dir}. Nothing to parse.", file=sys.stderr)
+        sys.exit(1)
+
     report_lines = [f"# Ingest Parse Report\n\nRun: {datetime.now().isoformat()}\n\n"]
     ok, skipped = 0, 0
 
@@ -66,7 +70,7 @@ def main() -> None:
     report_lines.append(f"\n**Total**: {ok} parsed, {skipped} skipped\n")
     reports_dir = root / cfg.quiz.reports_dir
     reports_dir.mkdir(parents=True, exist_ok=True)
-    (reports_dir / "parse_report.md").write_text("".join(report_lines))
+    (reports_dir / "parse_report.md").write_text("".join(report_lines), encoding="utf-8")
     print(f"Done. {ok} files extracted to {out_dir}")
 
 

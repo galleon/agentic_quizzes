@@ -28,7 +28,7 @@ def main() -> None:
         print(f"ERROR: quiz file not found: {quiz_path}", file=sys.stderr)
         sys.exit(1)
 
-    quiz = json.loads(quiz_path.read_text())
+    quiz = json.loads(quiz_path.read_text(encoding="utf-8"))
     items = quiz["items"]
     total = len(items)
     supported = sum(1 for i in items if i["grounding_verdict"] == "supported")
@@ -45,7 +45,7 @@ def main() -> None:
     # Write GitHub Actions job summary if running in CI
     summary_path = os.environ.get("GITHUB_STEP_SUMMARY")
     if summary_path:
-        with open(summary_path, "a") as fh:
+        with open(summary_path, "a", encoding="utf-8") as fh:
             fh.write(f"## Quiz quality: {quiz['topic']}\n\n")
             fh.write("| Metric | Value |\n|--------|-------|\n")
             fh.write(f"| Total questions | {total} |\n")

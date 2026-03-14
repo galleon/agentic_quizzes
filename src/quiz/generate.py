@@ -17,7 +17,7 @@ SYSTEM_PROMPT_PATH = Path(__file__).parent.parent.parent / "nanoclaw" / "prompts
 
 def _load_system_prompt() -> str:
     if SYSTEM_PROMPT_PATH.exists():
-        return SYSTEM_PROMPT_PATH.read_text()
+        return SYSTEM_PROMPT_PATH.read_text(encoding="utf-8")
     return (
         "You are a quiz generator. Output valid JSON only. "
         "Do not output chain-of-thought. Only use the provided source chunks."

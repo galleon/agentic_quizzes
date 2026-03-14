@@ -61,6 +61,13 @@ def validate_quiz(quiz: Quiz) -> Quiz:
             top_k=cfg.quiz.top_k_chunks,
             source_filter=source_filter,
         )
+        if not chunks:
+            # No supporting context available — mark as unverified without calling the LLM
+            item.grounding_verdict = "unverified"
+            item.confidence_flag = "low"
+            validated_items.append(item)
+            print(f"  [?] unverified (no chunks): {item.question[:70]}")
+            continue
         prompt = _build_validate_prompt(item, chunks)
         raw = generate(prompt, system=system)
 

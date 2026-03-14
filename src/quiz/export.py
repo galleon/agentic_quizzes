@@ -117,12 +117,33 @@ def main() -> None:
     if "csv" in args.formats:
         rows = to_csv_rows(quiz)
         out = quizzes_dir / f"{slug}.csv"
-        if rows:
-            with out.open("w", newline="", encoding="utf-8") as fh:
-                writer = csv.DictWriter(fh, fieldnames=list(rows[0].keys()))
-                writer.writeheader()
-                writer.writerows(rows)
-            print(f"CSV: {out}")
+        # Always write the file (with headers) so downstream tooling doesn't
+        # encounter a missing file when all questions happen to be rejected.
+        fieldnames = (
+            list(rows[0].keys())
+            if rows
+            else [
+                "question_id",
+                "question_type",
+                "difficulty",
+                "question",
+                "choice_a",
+                "choice_b",
+                "choice_c",
+                "choice_d",
+                "answer_index",
+                "answer",
+                "rationale",
+                "supporting_chunk_ids",
+                "source_files",
+                "grounding_verdict",
+            ]
+        )
+        with out.open("w", newline="", encoding="utf-8") as fh:
+            writer = csv.DictWriter(fh, fieldnames=fieldnames)
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"CSV: {out}{' (0 rows — all questions rejected)' if not rows else ''}")
 
     if "json" in args.formats:
         # Already exists; optionally export a clean version without embeddings

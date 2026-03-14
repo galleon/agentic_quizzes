@@ -7,6 +7,8 @@ import re
 from datetime import datetime
 from pathlib import Path
 
+from pydantic import ValidationError
+
 from src.common.config import get_settings, project_root
 from src.common.models import Quiz, QuizItem
 from src.common.ollama_client import generate, parse_json_response
@@ -89,18 +91,25 @@ def generate_quiz(
         items_data = [items_data]
 
     items = []
-    for d in items_data:
-        item = QuizItem(
-            question_type=d.get("question_type", "mcq"),
-            difficulty=d.get("difficulty", difficulty),
-            question=d.get("question", ""),
-            choices=d.get("choices"),
-            answer_index=d.get("answer_index"),
-            answer=d.get("answer"),
-            rationale=d.get("rationale", ""),
-            supporting_chunk_ids=d.get("supporting_chunk_ids", []),
-            source_files=d.get("source_files", []),
-        )
+    for i, d in enumerate(items_data):
+        if not isinstance(d, dict):
+            print(f"  Warning: item {i} is not a dict ({type(d).__name__}), skipping")
+            continue
+        try:
+            item = QuizItem(
+                question_type=d.get("question_type", "mcq"),
+                difficulty=d.get("difficulty", difficulty),
+                question=d.get("question", ""),
+                choices=d.get("choices"),
+                answer_index=d.get("answer_index"),
+                answer=d.get("answer"),
+                rationale=d.get("rationale", ""),
+                supporting_chunk_ids=d.get("supporting_chunk_ids", []),
+                source_files=d.get("source_files", []),
+            )
+        except ValidationError as exc:
+            print(f"  Warning: item {i} failed validation, skipping: {exc.error_count()} error(s)")
+            continue
         items.append(item)
 
     if len(items) > num_questions:

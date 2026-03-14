@@ -66,8 +66,14 @@ def validate_quiz(quiz: Quiz) -> Quiz:
 
         try:
             result = parse_json_response(raw)
-            verdict = result.get("verdict", "unverified")
+            raw_verdict = result.get("verdict", "unverified")
+            # Normalise: strip whitespace and lowercase so e.g. "Supported" still maps correctly
+            verdict = raw_verdict.strip().lower() if isinstance(raw_verdict, str) else "unverified"
         except (ValueError, AttributeError):
+            verdict = "unverified"
+
+        # Treat any verdict outside the known set as unverified
+        if verdict not in ("supported", "partial", "hallucinated"):
             verdict = "unverified"
 
         item.grounding_verdict = verdict

@@ -18,7 +18,7 @@ def main() -> None:
 
     entries = []
     for chunk_file in sorted(chunks_dir.glob("*.chunks.jsonl")):
-        with chunk_file.open() as fh:
+        with chunk_file.open(encoding="utf-8") as fh:
             lines = fh.readlines()
         entries.append(
             {

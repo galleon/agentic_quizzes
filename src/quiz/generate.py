@@ -103,6 +103,12 @@ def generate_quiz(
         )
         items.append(item)
 
+    if len(items) > num_questions:
+        print(f"  Warning: model returned {len(items)} items; truncating to {num_questions}")
+        items = items[:num_questions]
+    elif len(items) < num_questions:
+        print(f"  Warning: model returned {len(items)} items, expected {num_questions}")
+
     quiz = Quiz(
         topic=topic,
         difficulty=difficulty,

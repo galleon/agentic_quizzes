@@ -41,7 +41,9 @@ class IngestConfig(BaseModel):
     chunks_dir: str = "data/chunks"
     metadata_dir: str = "data/metadata"
     manifest_file: str = "data/metadata/manifest.jsonl"
-    supported_extensions: list[str] = [".pdf", ".html", ".md", ".txt"]
+    supported_extensions: list[str] = Field(
+        default_factory=lambda: [".pdf", ".html", ".md", ".txt"]
+    )
     chunk_size: int = 512
     chunk_overlap: int = 64
 
@@ -54,7 +56,9 @@ class QuizConfig(BaseModel):
     reports_dir: str = "outputs/reports"
     default_num_questions: int = 10
     default_difficulty: str = "medium"
-    default_question_types: list[str] = ["mcq", "short_answer", "true_false"]
+    default_question_types: list[str] = Field(
+        default_factory=lambda: ["mcq", "short_answer", "true_false"]
+    )
     top_k_chunks: int = 6
     min_confidence_chunks: int = 2
 

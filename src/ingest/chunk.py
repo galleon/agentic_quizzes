@@ -11,11 +11,6 @@ from src.common.config import get_settings, project_root
 from src.common.models import Chunk, ChunkMetadata
 
 
-def _approx_tokens(text: str) -> int:
-    """Rough token count: ~4 chars per token."""
-    return len(text) // 4
-
-
 def _extract_title(text: str, fallback: str) -> str:
     """Try to grab the first non-empty line as the document title."""
     for line in text.splitlines():

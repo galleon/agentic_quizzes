@@ -20,10 +20,14 @@ def main() -> None:
     for chunk_file in sorted(chunks_dir.rglob("*.chunks.jsonl")):
         with chunk_file.open(encoding="utf-8") as fh:
             num_chunks = sum(1 for line in fh if line.strip())
+        rel = chunk_file.relative_to(chunks_dir)
         entries.append(
             {
-                "stem": chunk_file.stem.replace(".chunks", ""),
-                "chunk_file": str(chunk_file.relative_to(root)),
+                # Use the full relative POSIX path (without .chunks.jsonl suffix) as
+                # the doc_id so same-basename files in different subdirectories are
+                # always distinguishable in the manifest.
+                "doc_id": rel.with_suffix("").with_suffix("").as_posix(),
+                "chunk_file": chunk_file.relative_to(root).as_posix(),
                 "num_chunks": num_chunks,
                 "ingested_at": datetime.now().isoformat(),
             }

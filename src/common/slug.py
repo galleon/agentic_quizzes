@@ -2,20 +2,24 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 
 
 def make_slug(topic: str) -> str:
-    """Return a safe, deterministic filename stem from a topic string.
+    """Return a safe, deterministic, unique filename stem from a topic string.
 
     Lowercases, replaces spaces with underscores, strips any character that
     is not ASCII alphanumeric, underscore, or hyphen (prevents path traversal
-    and non-ASCII surprises), and truncates to 40 characters.
+    and non-ASCII surprises), truncates the readable part to 32 characters,
+    then appends an 8-hex-char hash of the *full* original topic so that two
+    topics sharing the same 32-char prefix still produce distinct slugs.
 
-    Raises ValueError if the resulting slug is empty (e.g. topic is all
+    Raises ValueError if the sanitized prefix is empty (e.g. topic is all
     punctuation), so callers get a clear error instead of writing to '.json'.
     """
-    slug = re.sub(r"[^a-z0-9_-]", "", topic.lower().replace(" ", "_"))[:40]
-    if not slug:
+    prefix = re.sub(r"[^a-z0-9_-]", "", topic.lower().replace(" ", "_"))[:32]
+    if not prefix:
         raise ValueError(f"Topic {topic!r} produces an empty slug after sanitization.")
-    return slug
+    suffix = hashlib.sha256(topic.encode()).hexdigest()[:8]
+    return f"{prefix}_{suffix}"

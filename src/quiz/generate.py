@@ -85,7 +85,7 @@ def generate_quiz(
     try:
         items_data = parse_json_response(raw)
     except ValueError as e:
-        raise RuntimeError(f"Failed to parse model response as JSON: {e}\nRaw:\n{raw[:600]}")
+        raise RuntimeError(f"Failed to parse model response as JSON: {e}\nRaw:\n{raw[:600]}") from e
 
     if not isinstance(items_data, list):
         items_data = [items_data]

@@ -37,15 +37,17 @@ make index                                           # embed → upsert to Qdran
 make quiz TOPIC="GPU monitoring with DCGM"           # generate → validate → export
 ```
 
-Outputs land under `outputs/` with a slug derived from the topic:
+Outputs land under `outputs/` with a slug derived from the topic. The slug is
+`<sanitized_prefix>_<8hex>` where the 8-character hex suffix is a SHA-256 hash of the
+full topic string, ensuring uniqueness even when two topics share a long common prefix:
+
 ```
-outputs/quizzes/<slug>.{md,json,csv}
-outputs/answer_keys/<slug>_key.md
-outputs/rationales/<slug>_rationales.md
+outputs/quizzes/gpu_monitoring_with_dcgm_3f8a1c2e.{md,json,csv}
+outputs/answer_keys/gpu_monitoring_with_dcgm_3f8a1c2e_key.md
+outputs/rationales/gpu_monitoring_with_dcgm_3f8a1c2e_rationales.md
 ```
 
-> The slug includes a short hash of the topic to prevent filename collisions
-> (e.g. `gpu_monitoring_with_dcgm_a1b2c3d4`).
+Use `ls outputs/quizzes/` to find the exact filename for a given topic.
 
 ### Other useful targets
 

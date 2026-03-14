@@ -17,7 +17,10 @@ def main() -> None:
     manifest_path = root / cfg.ingest.manifest_file
 
     entries = []
-    for chunk_file in sorted(chunks_dir.rglob("*.chunks.jsonl")):
+    for chunk_file in sorted(
+        chunks_dir.rglob("*.chunks.jsonl"),
+        key=lambda p: p.relative_to(chunks_dir).as_posix(),
+    ):
         with chunk_file.open(encoding="utf-8") as fh:
             num_chunks = sum(1 for line in fh if line.strip())
         rel = chunk_file.relative_to(chunks_dir)

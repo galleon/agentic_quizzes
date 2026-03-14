@@ -2,9 +2,17 @@
 
 from __future__ import annotations
 
+from functools import lru_cache
+
 from src.common.config import get_settings
 from src.common.ollama_client import embed
 from src.rag.index import get_client
+
+
+@lru_cache(maxsize=1)
+def _cached_client():
+    """Return a cached Qdrant client so repeated retrieve() calls reuse the connection."""
+    return get_client(get_settings())
 
 
 def retrieve(
@@ -15,7 +23,7 @@ def retrieve(
     """Return top-k payload dicts (including 'text') for a query string."""
     cfg = get_settings()
     top_k = cfg.quiz.top_k_chunks if top_k is None else top_k
-    client = get_client(cfg)
+    client = _cached_client()
 
     query_vec = embed(query)
 

@@ -71,7 +71,9 @@ def main() -> None:
         text = parse_file(src_file)
         if not text:
             skipped += 1
-            report_lines.append(f"- SKIP `{src_file.name}` (empty or unsupported)\n")
+            report_lines.append(
+                f"- SKIP `{src_file.relative_to(raw_dir).as_posix()}` (empty or unsupported)\n"
+            )
             continue
 
         # Mirror relative path from raw_dir so same-name files in different
@@ -81,7 +83,9 @@ def main() -> None:
         out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(text, encoding="utf-8")
         ok += 1
-        report_lines.append(f"- OK `{src_file.name}` → `{out_path.relative_to(root)}`\n")
+        report_lines.append(
+            f"- OK `{rel.as_posix()}` → `{out_path.relative_to(root).as_posix()}`\n"
+        )
 
     report_lines.append(f"\n**Total**: {ok} parsed, {skipped} skipped\n")
     reports_dir = root / cfg.quiz.reports_dir

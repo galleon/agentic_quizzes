@@ -68,7 +68,9 @@ def validate_quiz(quiz: Quiz) -> Quiz:
         item.grounding_verdict = verdict
         if verdict == "hallucinated":
             item.confidence_flag = "rejected"
-        elif verdict == "partial":
+        elif verdict in ("partial", "unverified"):
+            # unverified means validation failed (parse error / unexpected response);
+            # treat as low-confidence rather than silently passing through as "ok"
             item.confidence_flag = "low"
         else:
             item.confidence_flag = "ok"
@@ -84,7 +86,11 @@ def validate_quiz(quiz: Quiz) -> Quiz:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Validate quiz grounding.")
-    parser.add_argument("--topic", required=True, help="Slug matching the quiz JSON filename")
+    parser.add_argument(
+        "--topic",
+        required=True,
+        help="Topic string used during generation (e.g. 'GPU monitoring with DCGM')",
+    )
     args = parser.parse_args()
 
     cfg = get_settings()

@@ -12,12 +12,12 @@ from src.common.config import get_settings, project_root
 
 
 def parse_pdf(pdf_path: Path) -> str:
-    doc = pymupdf.open(str(pdf_path))
-    pages = []
-    for i, page in enumerate(doc):
-        text = page.get_text()
-        if text.strip():
-            pages.append(f"<!-- page {i + 1} -->\n{text}")
+    with pymupdf.open(str(pdf_path)) as doc:
+        pages = []
+        for i, page in enumerate(doc):
+            text = page.get_text()
+            if text.strip():
+                pages.append(f"<!-- page {i + 1} -->\n{text}")
     return "\n\n".join(pages)
 
 

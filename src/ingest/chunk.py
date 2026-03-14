@@ -44,14 +44,24 @@ def chunk_text(
     return chunks
 
 
+def _normalize_ws(text: str) -> str:
+    """Collapse all whitespace runs to a single space."""
+    return " ".join(text.split())
+
+
 def infer_page(chunk_text: str, full_text: str) -> str:
-    """Attempt to find the page number nearest to this chunk in the source."""
-    # Find position of chunk in full text (approximate)
-    idx = full_text.find(chunk_text[:80])
+    """Attempt to find the page number nearest to this chunk in the source.
+
+    Both texts are whitespace-normalised before matching so that the
+    split()+join() chunking doesn't cause the lookup to fail.
+    """
+    needle = _normalize_ws(chunk_text[:80])
+    haystack = _normalize_ws(full_text)
+    idx = haystack.find(needle)
     if idx == -1:
         return ""
-    # Look backwards for the nearest page marker
-    before = full_text[:idx]
+    # Recover approximate position in original text and scan back for page marker
+    before = full_text[: int(idx * len(full_text) / max(len(haystack), 1))]
     pages = re.findall(r"<!-- page (\d+) -->", before)
     return pages[-1] if pages else ""
 

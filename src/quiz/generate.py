@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from datetime import datetime
 from pathlib import Path
 
@@ -136,7 +137,7 @@ def main() -> None:
 
     out_dir = root / cfg.quiz.quizzes_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-    slug = args.topic.lower().replace(" ", "_")[:40]
+    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
     out_path = out_dir / f"{slug}.json"
     out_path.write_text(quiz.model_dump_json(indent=2))
     print(f"Quiz saved: {out_path} ({len(quiz.items)} questions)")

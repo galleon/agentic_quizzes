@@ -8,17 +8,10 @@ name: Pipeline quality gate
 # See: https://docs.github.com/en/actions/hosting-your-own-runners
 
 on:
-  # Trigger on changes that affect quiz quality
-  push:
-    branches: [main, nanoclaw-pipeline]
-    paths:
-      - "nanoclaw/prompts/**"
-      - "nanoclaw/config/settings.yaml"
-      - "src/quiz/**"
-      - "src/rag/**"
-      - "src/ingest/**"
-
-  # Manual trigger with topic override — useful for spot-checking
+  # Manual trigger only — automatic push trigger is disabled until a
+  # self-hosted GPU runner is registered (label: [self-hosted, gpu]).
+  # Once the runner is available, re-add the push trigger with path filters.
+  # See: https://docs.github.com/en/actions/hosting-your-own-runners
   workflow_dispatch:
     inputs:
       topic:

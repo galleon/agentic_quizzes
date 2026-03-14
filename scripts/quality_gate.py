@@ -10,6 +10,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -20,7 +21,7 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, default=0.70)
     args = parser.parse_args()
 
-    slug = args.topic.lower().replace(" ", "_")[:40]
+    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
     quiz_path = Path("outputs/quizzes") / f"{slug}.json"
 
     if not quiz_path.exists():

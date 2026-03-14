@@ -14,7 +14,7 @@ class OllamaOptions(BaseModel):
     temperature: float = 0.2
     top_p: float = 0.9
     top_k: int = 20
-    num_predict: int = 600
+    num_predict: int = 4096
     repeat_penalty: float = 1.1
     think: bool = False
 
@@ -41,7 +41,7 @@ class IngestConfig(BaseModel):
     chunks_dir: str = "data/chunks"
     metadata_dir: str = "data/metadata"
     manifest_file: str = "data/metadata/manifest.jsonl"
-    supported_extensions: list[str] = [".pdf", ".docx", ".html", ".md", ".txt"]
+    supported_extensions: list[str] = [".pdf", ".html", ".md", ".txt"]
     chunk_size: int = 512
     chunk_overlap: int = 64
 

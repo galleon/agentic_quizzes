@@ -24,6 +24,8 @@ def main() -> None:
         lines = chunk_file.read_text(encoding="utf-8").splitlines()
         updated = []
         for i, line in enumerate(lines):
+            if not line.strip():
+                continue
             chunk = json.loads(line)
             if chunk.get("embedding"):
                 updated.append(line)

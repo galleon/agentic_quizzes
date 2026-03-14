@@ -49,14 +49,19 @@ def _normalize_ws(text: str) -> str:
     return " ".join(text.split())
 
 
-def infer_page(chunk_text: str, full_text: str) -> str:
+def infer_page(chunk_text: str, full_text: str, _normalized_haystack: str | None = None) -> str:
     """Attempt to find the page number nearest to this chunk in the source.
 
     Both texts are whitespace-normalised before matching so that the
     split()+join() chunking doesn't cause the lookup to fail.
+
+    Pass a precomputed ``_normalized_haystack`` to avoid recomputing
+    ``_normalize_ws(full_text)`` on every call (O(1) vs O(n) per chunk).
     """
     needle = _normalize_ws(chunk_text[:80])
-    haystack = _normalize_ws(full_text)
+    haystack = (
+        _normalized_haystack if _normalized_haystack is not None else _normalize_ws(full_text)
+    )
     idx = haystack.find(needle)
     if idx == -1:
         return ""
@@ -90,10 +95,11 @@ def main() -> None:
 
         title = _extract_title(text, fallback=f.stem)
         raw_chunks = chunk_text(text, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap)
+        normalized_raw = _normalize_ws(raw_text)
 
         chunks: list[dict] = []
         for i, chunk_str in enumerate(raw_chunks):
-            page = infer_page(chunk_str, raw_text)
+            page = infer_page(chunk_str, raw_text, normalized_raw)
             content_hash = hashlib.sha256(chunk_str.encode()).hexdigest()[:16]
             meta = ChunkMetadata(
                 source_file=f.name,

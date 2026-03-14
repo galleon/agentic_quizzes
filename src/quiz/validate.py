@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import re
 from pathlib import Path
 
 from src.common.config import get_settings, project_root
@@ -95,7 +96,7 @@ def main() -> None:
 
     cfg = get_settings()
     root = project_root()
-    slug = args.topic.lower().replace(" ", "_")[:40]
+    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
     quiz_path = root / cfg.quiz.quizzes_dir / f"{slug}.json"
 
     if not quiz_path.exists():

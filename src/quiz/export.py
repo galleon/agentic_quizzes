@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import csv
+import re
 
 from src.common.config import get_settings, project_root
 from src.common.models import Quiz
@@ -90,7 +91,7 @@ def main() -> None:
 
     cfg = get_settings()
     root = project_root()
-    slug = args.topic.lower().replace(" ", "_")[:40]
+    slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
     quiz_path = root / cfg.quiz.quizzes_dir / f"{slug}.json"
 
     if not quiz_path.exists():

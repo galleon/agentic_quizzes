@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 import tempfile
 from pathlib import Path
@@ -32,7 +33,10 @@ def main() -> None:
         fd, tmp_path = tempfile.mkstemp(dir=chunk_file.parent, suffix=".tmp")
         tmp = Path(tmp_path)
         try:
-            with chunk_file.open(encoding="utf-8") as src, open(fd, "w", encoding="utf-8") as dst:
+            with (
+                chunk_file.open(encoding="utf-8") as src,
+                os.fdopen(fd, "w", encoding="utf-8") as dst,
+            ):
                 for i, line in enumerate(src):
                     if not line.strip():
                         continue

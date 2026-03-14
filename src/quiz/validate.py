@@ -28,7 +28,11 @@ def _load_system_prompt() -> str:
 def _build_validate_prompt(item: QuizItem, chunks: list[dict]) -> str:
     chunk_texts = "\n\n---\n\n".join(f"[{c['chunk_id']}] {c['text']}" for c in chunks)
     answer = item.answer or (
-        item.choices[item.answer_index] if item.choices and item.answer_index is not None else "N/A"
+        item.choices[item.answer_index]
+        if item.choices
+        and item.answer_index is not None
+        and 0 <= item.answer_index < len(item.choices)
+        else "N/A"
     )
     return f"""Question: {item.question}
 Answer: {answer}

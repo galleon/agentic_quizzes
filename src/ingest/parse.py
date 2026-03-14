@@ -57,7 +57,8 @@ def main() -> None:
             report_lines.append(f"- SKIP `{src_file.name}` (empty or unsupported)\n")
             continue
 
-        out_path = out_dir / (src_file.stem + ".txt")
+        # Include original extension in stem to avoid collisions (e.g. foo.pdf + foo.md)
+        out_path = out_dir / f"{src_file.stem}_{src_file.suffix.lstrip('.')}.txt"
         out_path.write_text(text, encoding="utf-8")
         ok += 1
         report_lines.append(f"- OK `{src_file.name}` → `{out_path.relative_to(root)}`\n")

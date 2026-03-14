@@ -19,12 +19,12 @@ def main() -> None:
     entries = []
     for chunk_file in sorted(chunks_dir.rglob("*.chunks.jsonl")):
         with chunk_file.open(encoding="utf-8") as fh:
-            lines = fh.readlines()
+            num_chunks = sum(1 for line in fh if line.strip())
         entries.append(
             {
                 "stem": chunk_file.stem.replace(".chunks", ""),
                 "chunk_file": str(chunk_file.relative_to(root)),
-                "num_chunks": sum(1 for line in lines if line.strip()),
+                "num_chunks": num_chunks,
                 "ingested_at": datetime.now().isoformat(),
             }
         )

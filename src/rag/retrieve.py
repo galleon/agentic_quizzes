@@ -40,4 +40,10 @@ def retrieve(
         with_payload=True,
     )
 
-    return [{**r.payload, "score": r.score} for r in response.points]
+    results = []
+    for r in response.points:
+        payload = r.payload or {}
+        if not payload.get("text"):
+            continue  # skip points with missing payload or empty text
+        results.append({**payload, "score": r.score})
+    return results

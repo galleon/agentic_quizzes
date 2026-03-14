@@ -70,7 +70,14 @@ class Settings(BaseModel):
 
 
 def _find_project_root() -> Path:
-    """Walk up from CWD to find the directory containing nanoclaw/config/settings.yaml."""
+    """Walk up from CWD to find the directory containing nanoclaw/config/settings.yaml.
+
+    The search can be bypassed by setting the ``NANOCLAW_ROOT`` environment
+    variable to the absolute path of the project root.
+    """
+    env_root = os.environ.get("NANOCLAW_ROOT")
+    if env_root:
+        return Path(env_root)
     candidate = Path(os.getcwd())
     for _ in range(6):
         if (candidate / "nanoclaw" / "config" / "settings.yaml").exists():
@@ -86,6 +93,13 @@ def get_settings() -> Settings:
     if config_path.exists():
         data = yaml.safe_load(config_path.read_text(encoding="utf-8"))
         return Settings.model_validate(data or {})
+    import warnings
+
+    warnings.warn(
+        f"nanoclaw config not found at {config_path}; using built-in defaults. "
+        "Set NANOCLAW_ROOT to the project root to fix this.",
+        stacklevel=2,
+    )
     return Settings()
 
 

@@ -12,7 +12,8 @@ import json
 import os
 import re
 import sys
-from pathlib import Path
+
+from src.common.config import get_settings, project_root
 
 
 def main() -> None:
@@ -21,8 +22,10 @@ def main() -> None:
     parser.add_argument("--threshold", type=float, default=0.70)
     args = parser.parse_args()
 
+    cfg = get_settings()
+    root = project_root()
     slug = re.sub(r"[^\w-]", "", args.topic.lower().replace(" ", "_"))[:40]
-    quiz_path = Path("outputs/quizzes") / f"{slug}.json"
+    quiz_path = root / cfg.quiz.quizzes_dir / f"{slug}.json"
 
     if not quiz_path.exists():
         print(f"ERROR: quiz file not found: {quiz_path}", file=sys.stderr)

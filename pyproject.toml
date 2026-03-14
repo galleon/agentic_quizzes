@@ -22,7 +22,7 @@ packages = ["src"]
 [dependency-groups]
 dev = [
     "pytest>=8.0",
-    "ruff>=0.4",
+    "ruff>=0.15",
     "pre-commit>=3.7",
 ]
 

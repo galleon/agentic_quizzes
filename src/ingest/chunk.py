@@ -56,7 +56,7 @@ def infer_page(chunk_text: str, full_text: str, _normalized_haystack: str | None
     is still used to scan backwards for the nearest ``<!-- page N -->`` tag.
 
     Pass a precomputed ``_normalized_haystack`` (marker-stripped + ws-normalised)
-    to avoid recomputing it on every call (O(1) vs O(n) per chunk).
+    to avoid re-running the O(n) normalisation on every call.
     """
     needle = _normalize_ws(chunk_text[:80])
     haystack = (
@@ -83,7 +83,7 @@ def main() -> None:
     # Also read the extracted dir to get page markers for provenance
     extracted_dir = root / cfg.ingest.extracted_dir
 
-    files = list(in_dir.glob("*.txt"))
+    files = list(in_dir.rglob("*.txt"))
     if not files:
         print("No cleaned files found. Run clean.py first.", file=sys.stderr)
         sys.exit(1)
@@ -91,8 +91,8 @@ def main() -> None:
     total_chunks = 0
     for f in files:
         text = f.read_text(encoding="utf-8")
-        # Try to get raw text with page markers for provenance
-        raw_path = extracted_dir / f.name
+        # Look up the extracted file preserving subdirectory structure
+        raw_path = extracted_dir / f.relative_to(in_dir)
         raw_text = raw_path.read_text(encoding="utf-8") if raw_path.exists() else text
 
         title = _extract_title(text, fallback=f.stem)

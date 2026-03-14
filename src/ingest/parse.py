@@ -68,8 +68,11 @@ def main() -> None:
             report_lines.append(f"- SKIP `{src_file.name}` (empty or unsupported)\n")
             continue
 
-        # Include original extension in stem to avoid collisions (e.g. foo.pdf + foo.md)
-        out_path = out_dir / f"{src_file.stem}_{src_file.suffix.lstrip('.')}.txt"
+        # Mirror relative path from raw_dir so same-name files in different
+        # subdirectories don't overwrite each other.
+        rel = src_file.relative_to(raw_dir)
+        out_path = out_dir / rel.parent / f"{src_file.stem}_{src_file.suffix.lstrip('.')}.txt"
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(text, encoding="utf-8")
         ok += 1
         report_lines.append(f"- OK `{src_file.name}` → `{out_path.relative_to(root)}`\n")

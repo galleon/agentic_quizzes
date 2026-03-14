@@ -31,7 +31,7 @@ def main() -> None:
     out_dir = root / cfg.ingest.cleaned_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    files = list(in_dir.glob("*.txt"))
+    files = list(in_dir.rglob("*.txt"))
     if not files:
         print("No extracted files found. Run parse.py first.", file=sys.stderr)
         sys.exit(1)
@@ -39,9 +39,11 @@ def main() -> None:
     for f in files:
         raw = f.read_text(encoding="utf-8")
         cleaned = clean_text(raw)
-        out_path = out_dir / f.name
+        # Mirror subdirectory structure from extracted/ into cleaned/
+        out_path = out_dir / f.relative_to(in_dir)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
         out_path.write_text(cleaned, encoding="utf-8")
-        print(f"Cleaned: {f.name} ({len(raw)} → {len(cleaned)} chars)")
+        print(f"Cleaned: {f.relative_to(in_dir)} ({len(raw)} → {len(cleaned)} chars)")
 
     print(f"Done. {len(files)} files cleaned to {out_dir}")
 

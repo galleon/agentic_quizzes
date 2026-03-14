@@ -49,18 +49,18 @@ def main() -> None:
     report_lines = [f"# Ingest Parse Report\n\nRun: {datetime.now().isoformat()}\n\n"]
     ok, skipped = 0, 0
 
-    for pdf in files:
-        print(f"Parsing: {pdf.name}")
-        text = parse_file(pdf)
+    for src_file in files:
+        print(f"Parsing: {src_file.name}")
+        text = parse_file(src_file)
         if not text:
             skipped += 1
-            report_lines.append(f"- SKIP `{pdf.name}` (empty or unsupported)\n")
+            report_lines.append(f"- SKIP `{src_file.name}` (empty or unsupported)\n")
             continue
 
-        out_path = out_dir / (pdf.stem + ".txt")
+        out_path = out_dir / (src_file.stem + ".txt")
         out_path.write_text(text, encoding="utf-8")
         ok += 1
-        report_lines.append(f"- OK `{pdf.name}` → `{out_path.relative_to(root)}`\n")
+        report_lines.append(f"- OK `{src_file.name}` → `{out_path.relative_to(root)}`\n")
 
     report_lines.append(f"\n**Total**: {ok} parsed, {skipped} skipped\n")
     reports_dir = root / cfg.quiz.reports_dir

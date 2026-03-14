@@ -59,8 +59,6 @@ jobs:
           bash nanoclaw/tasks/generate_quiz.sh "$TOPIC" "$NUM" "$DIFF"
 
       - name: Quality gate
-        env:
-          GITHUB_STEP_SUMMARY: ${{ env.GITHUB_STEP_SUMMARY }}
         run: |
           uv run python3 scripts/quality_gate.py \
             --topic "$TOPIC" \

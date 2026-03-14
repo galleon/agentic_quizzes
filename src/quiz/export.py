@@ -128,12 +128,11 @@ def main() -> None:
         # Already exists; optionally export a clean version without embeddings
         print(f"JSON: {quiz_path} (already written by generate/validate)")
 
-    # Write rationales
+    # Write rationales (only accepted items, numbered to match the exported quiz)
     rationale_lines = []
-    for n, item in enumerate(quiz.items, 1):
-        if item.confidence_flag != "rejected":
-            chunks_str = ", ".join(item.supporting_chunk_ids)
-            rationale_lines.append(f"{n}. {item.rationale}  (chunks: {chunks_str})\n")
+    for n, item in enumerate((i for i in quiz.items if i.confidence_flag != "rejected"), 1):
+        chunks_str = ", ".join(item.supporting_chunk_ids)
+        rationale_lines.append(f"{n}. {item.rationale}  (chunks: {chunks_str})\n")
     (rationales_dir / f"{slug}_rationales.md").write_text("".join(rationale_lines))
     print(f"Rationales: {rationales_dir / f'{slug}_rationales.md'}")
 

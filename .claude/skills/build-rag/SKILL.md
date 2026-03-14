@@ -21,8 +21,8 @@ bash nanoclaw/tasks/build_index.sh
 
 Or step by step:
 ```bash
-python -m src.rag.embed
-python -m src.rag.index
+uv run python3 -m src.rag.embed
+uv run python3 -m src.rag.index
 ```
 
 To switch to Qdrant server mode, set `qdrant.mode: server` in `nanoclaw/config/settings.yaml`.

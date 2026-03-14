@@ -26,9 +26,9 @@ bash nanoclaw/tasks/generate_quiz.sh "GPU monitoring" 10 medium
 
 Or step by step:
 ```bash
-python -m src.quiz.generate --topic "GPU monitoring" --num 10 --difficulty medium
-python -m src.quiz.validate --topic "GPU monitoring"
-python -m src.quiz.export   --topic "GPU monitoring" --formats md json csv
+uv run python3 -m src.quiz.generate --topic "GPU monitoring" --num 10 --difficulty medium
+uv run python3 -m src.quiz.validate --topic "GPU monitoring"
+uv run python3 -m src.quiz.export   --topic "GPU monitoring" --formats md json csv
 ```
 
 LLM verbosity controls (see `nanoclaw/config/settings.yaml`):

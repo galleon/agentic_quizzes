@@ -6,7 +6,7 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 cd "$PROJECT_ROOT"
 
 echo "=== NanoClaw Index Pipeline ==="
-echo "Embedding model: nomic-embed-text (via Ollama)"
+echo "Using configured embedding model from settings.yaml (via Ollama)"
 
 uv run python3 -m src.rag.embed
 uv run python3 -m src.rag.index

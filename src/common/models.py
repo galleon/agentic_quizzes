@@ -5,7 +5,7 @@ from __future__ import annotations
 import uuid
 from typing import Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class ChunkMetadata(BaseModel):
@@ -26,6 +26,8 @@ class Chunk(BaseModel):
 
 
 class QuizItem(BaseModel):
+    model_config = ConfigDict(validate_assignment=True)
+
     question_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     question_type: Literal["mcq", "short_answer", "true_false"]
     difficulty: Literal["easy", "medium", "hard"] = "medium"

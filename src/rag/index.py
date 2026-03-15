@@ -30,6 +30,29 @@ def ensure_collection(client: QdrantClient, cfg) -> None:
             ),
         )
         print(f"Created collection: {cfg.qdrant.collection}")
+        return
+
+    # Collection exists — validate vector params match current config so
+    # a changed embedding model doesn't cause silent failures later.
+    info = client.get_collection(cfg.qdrant.collection)
+    actual = info.config.params.vectors
+    # VectorParams is used when the collection has a single unnamed vector.
+    if isinstance(actual, VectorParams):
+        actual_size = actual.size
+        actual_distance = actual.distance
+    else:
+        # Named vectors map — use the default (unnamed) key if present.
+        default = actual.get("") if isinstance(actual, dict) else None
+        actual_size = default.size if default else None
+        actual_distance = default.distance if default else None
+
+    if actual_size != cfg.qdrant.vector_size or actual_distance != Distance.COSINE:
+        raise RuntimeError(
+            f"Collection '{cfg.qdrant.collection}' exists but has incompatible vector params "
+            f"(size={actual_size}, distance={actual_distance}). "
+            f"Expected size={cfg.qdrant.vector_size}, distance=COSINE. "
+            "Run `make clean` and re-index, or update settings.yaml to match the collection."
+        )
 
 
 def main() -> None:

@@ -63,11 +63,17 @@ class QuizConfig(BaseModel):
     top_k_chunks: int = 6
 
 
+class DoclingConfig(BaseModel):
+    enabled: bool = False
+    timeout_seconds: int = 60  # reserved for future remote-API mode
+
+
 class Settings(BaseModel):
     ollama: OllamaConfig = Field(default_factory=OllamaConfig)
     qdrant: QdrantConfig = Field(default_factory=QdrantConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     quiz: QuizConfig = Field(default_factory=QuizConfig)
+    docling: DoclingConfig = Field(default_factory=DoclingConfig)
 
 
 def _find_project_root() -> Path:

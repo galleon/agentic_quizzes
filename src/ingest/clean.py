@@ -15,13 +15,23 @@ _PAGE_MARKER = re.compile(r"<!-- page \d+ -->")
 def clean_text(raw: str) -> str:
     # Drop page markers (keep content)
     text = _PAGE_MARKER.sub("", raw)
-    # Collapse excessive whitespace
-    text = _MULTI_SPACE.sub(" ", text)
     text = _MULTI_NEWLINE.sub("\n\n", text)
-    # Strip leading/trailing whitespace per line
-    lines = [line.rstrip() for line in text.splitlines()]
-    text = "\n".join(lines).strip()
-    return text
+
+    # Collapse consecutive spaces/tabs per line, but skip lines inside code
+    # fences so that indentation (e.g. Python indent) is not destroyed.
+    cleaned: list[str] = []
+    in_fence = False
+    for line in text.splitlines():
+        stripped = line.strip()
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            in_fence = not in_fence
+            cleaned.append(line.rstrip())
+        elif in_fence:
+            cleaned.append(line.rstrip())
+        else:
+            cleaned.append(_MULTI_SPACE.sub(" ", line).rstrip())
+
+    return "\n".join(cleaned).strip()
 
 
 def main() -> None:

@@ -25,6 +25,12 @@ dev = [
     "ruff>=0.15",
     "pre-commit>=3.7",
 ]
+# Optional: rich structured PDF extraction (tables, code blocks, headings).
+# Install with: uv add --group docling docling docling-ibm-models
+# Warning: pulls in torch + layout model weights (~several GB on first run).
+docling = [
+    "docling>=2.0",
+]
 
 [tool.ruff]
 line-length = 100

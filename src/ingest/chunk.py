@@ -9,6 +9,7 @@ import sys
 
 from src.common.config import get_settings, project_root
 from src.common.models import Chunk, ChunkMetadata
+from src.ingest.parse_docling import DOCLING_MARKER
 
 
 def _extract_title(text: str, fallback: str) -> str:
@@ -43,6 +44,189 @@ def chunk_text(
             break
         i += step
     return chunks
+
+
+def _split_into_blocks(text: str) -> list[str]:
+    """Split Markdown text into semantic blocks preserving tables and code fences.
+
+    Each returned block is one of:
+    - a fenced code block (``` ... ```)
+    - a contiguous run of table rows (| ... |)
+    - a heading line followed by its body paragraph
+    - a regular paragraph
+    """
+    blocks: list[str] = []
+    current: list[str] = []
+    in_fence = False
+    in_table = False
+
+    for line in text.splitlines():
+        stripped = line.strip()
+
+        # ---- Code fence toggle ----
+        if stripped.startswith("```") or stripped.startswith("~~~"):
+            if not in_fence:
+                # Flush any pending paragraph before opening fence
+                if current:
+                    block = "\n".join(current).strip()
+                    if block:
+                        blocks.append(block)
+                    current = []
+                in_fence = True
+            else:
+                in_fence = False
+            current.append(line)
+            if not in_fence:
+                # Closing fence — flush the complete code block
+                blocks.append("\n".join(current))
+                current = []
+            continue
+
+        if in_fence:
+            current.append(line)
+            continue
+
+        # ---- Table detection (contiguous pipe-prefixed lines) ----
+        is_table_row = stripped.startswith("|")
+        if is_table_row and not in_table:
+            # Flush pending paragraph before the table
+            if current:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
+                current = []
+            in_table = True
+        elif not is_table_row and in_table:
+            # End of table — flush
+            blocks.append("\n".join(current))
+            current = []
+            in_table = False
+
+        if in_table:
+            current.append(line)
+            continue
+
+        # ---- Heading: flush pending paragraph first ----
+        if stripped.startswith("#") and current:
+            block = "\n".join(current).strip()
+            if block:
+                blocks.append(block)
+            current = []
+
+        # ---- Blank line: flush pending paragraph ----
+        if not stripped:
+            if current:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
+                current = []
+            continue
+
+        current.append(line)
+
+    # Flush remainder
+    if current:
+        if in_fence:
+            # Unclosed fence — emit as-is
+            blocks.append("\n".join(current))
+        elif in_table:
+            blocks.append("\n".join(current))
+        else:
+            block = "\n".join(current).strip()
+            if block:
+                blocks.append(block)
+
+    return [b for b in blocks if b.strip()]
+
+
+def _last_heading(blocks: list[str], from_idx: int) -> str:
+    """Return text of the nearest Markdown heading at or before *from_idx* in *blocks*.
+
+    Searches backwards from *from_idx* (inclusive) so that a chunk whose first
+    block IS a heading correctly reports that heading as its section.
+    """
+    for i in range(from_idx, -1, -1):
+        first_line = blocks[i].splitlines()[0] if blocks[i] else ""
+        if first_line.lstrip().startswith("#"):
+            return first_line.lstrip("#").strip()[:80]
+    return ""
+
+
+def chunk_structured_markdown(
+    text: str,
+    chunk_size: int = 512,
+    overlap: int = 64,
+) -> list[tuple[str, str]]:
+    """Chunk structured Markdown text respecting block boundaries.
+
+    Returns a list of ``(chunk_text, section_heading)`` tuples.  *section_heading*
+    is the nearest preceding Markdown heading (stripped of ``#`` markers) which
+    callers can use as ``page_or_section`` metadata.  Empty string when no
+    heading precedes the chunk.
+
+    Blocks larger than *chunk_size* words are emitted as single oversized chunks
+    rather than being silently truncated or broken mid-table/mid-code.
+    """
+    if chunk_size <= 0:
+        raise ValueError(f"chunk_size must be > 0, got {chunk_size}")
+    if overlap < 0:
+        raise ValueError(f"overlap must be >= 0, got {overlap}")
+    if overlap >= chunk_size:
+        raise ValueError(f"overlap ({overlap}) must be < chunk_size ({chunk_size})")
+
+    blocks = _split_into_blocks(text)
+    if not blocks:
+        return []
+
+    result: list[tuple[str, str]] = []
+    current_blocks: list[str] = []
+    current_start_idx: int = 0  # index into blocks[] of first block in the current chunk
+    current_word_count: int = 0
+
+    for i, block in enumerate(blocks):
+        block_words = len(block.split())
+        if not block_words:
+            continue
+
+        # Oversized single block: flush accumulated then emit block alone
+        if block_words > chunk_size:
+            if current_blocks:
+                section = _last_heading(blocks, current_start_idx)
+                result.append(("\n\n".join(current_blocks), section))
+                current_blocks = []
+                current_word_count = 0
+            section = _last_heading(blocks, i)
+            result.append((block, section))
+            current_start_idx = i + 1
+            continue
+
+        # Adding this block would exceed chunk_size: flush accumulated first
+        if current_blocks and current_word_count + block_words > chunk_size:
+            section = _last_heading(blocks, current_start_idx)
+            result.append(("\n\n".join(current_blocks), section))
+
+            # Overlap: keep trailing blocks that fit within the overlap budget
+            overlap_blocks: list[str] = []
+            overlap_count = 0
+            for b in reversed(current_blocks):
+                bwc = len(b.split())
+                if overlap_count + bwc <= overlap:
+                    overlap_blocks.insert(0, b)
+                    overlap_count += bwc
+                else:
+                    break
+            current_blocks = overlap_blocks
+            current_start_idx = i - len(overlap_blocks)
+            current_word_count = overlap_count
+
+        current_blocks.append(block)
+        current_word_count += block_words
+
+    if current_blocks:
+        section = _last_heading(blocks, current_start_idx)
+        result.append(("\n\n".join(current_blocks), section))
+
+    return result
 
 
 def _normalize_ws(text: str) -> str:
@@ -97,32 +281,57 @@ def main() -> None:
     total_chunks = 0
     for f in files:
         text = f.read_text(encoding="utf-8")
-        # Look up the extracted file preserving subdirectory structure
-        raw_path = extracted_dir / f.relative_to(in_dir)
-        raw_text = raw_path.read_text(encoding="utf-8") if raw_path.exists() else text
 
-        title = _extract_title(text, fallback=f.stem)
-        raw_chunks = chunk_text(text, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap)
-        # Strip page markers before normalising so cleaned chunks match across page boundaries
-        normalized_raw = _normalize_ws(_PAGE_MARKER_RE.sub("", raw_text))
+        is_structured = text.startswith(DOCLING_MARKER)
+        # Strip the marker line so it doesn't leak into chunk content or titles
+        body = text[len(DOCLING_MARKER) :].lstrip("\n") if is_structured else text
+
+        title = _extract_title(body, fallback=f.stem)
+        rel = f.relative_to(in_dir)
 
         chunks: list[dict] = []
-        for i, chunk_str in enumerate(raw_chunks):
-            page = infer_page(chunk_str, raw_text, normalized_raw)
-            content_hash = hashlib.sha256(chunk_str.encode()).hexdigest()[:16]
-            # Use relative path as source_file so same-named files in
-            # different subdirectories remain distinguishable in metadata,
-            # source_filter queries, and reporting.
-            rel = f.relative_to(in_dir)
-            meta = ChunkMetadata(
-                source_file=rel.as_posix(),
-                document_title=title,
-                page_or_section=f"page {page}" if page else f"chunk {i + 1}",
-                topic_tags=[],
-                hash=content_hash,
+
+        if is_structured:
+            # Structure-aware chunking: keeps tables, code fences, and headings intact.
+            # page_or_section is derived from the nearest preceding Markdown heading.
+            structured = chunk_structured_markdown(
+                body, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap
             )
-            chunk = Chunk(metadata=meta, text=chunk_str)
-            chunks.append(chunk.model_dump(exclude={"embedding"}))
+            for i, (chunk_str, section) in enumerate(structured):
+                content_hash = hashlib.sha256(chunk_str.encode()).hexdigest()[:16]
+                meta = ChunkMetadata(
+                    source_file=rel.as_posix(),
+                    document_title=title,
+                    page_or_section=f"§ {section}" if section else f"chunk {i + 1}",
+                    topic_tags=[],
+                    hash=content_hash,
+                )
+                chunks.append(
+                    Chunk(metadata=meta, text=chunk_str).model_dump(exclude={"embedding"})
+                )
+        else:
+            # Word-based chunking with page-marker provenance (PyMuPDF path)
+            raw_path = extracted_dir / f.relative_to(in_dir)
+            raw_text = raw_path.read_text(encoding="utf-8") if raw_path.exists() else text
+            raw_chunks = chunk_text(body, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap)
+            # Strip page markers before normalising so cleaned chunks match across page boundaries
+            normalized_raw = _normalize_ws(_PAGE_MARKER_RE.sub("", raw_text))
+            for i, chunk_str in enumerate(raw_chunks):
+                page = infer_page(chunk_str, raw_text, normalized_raw)
+                content_hash = hashlib.sha256(chunk_str.encode()).hexdigest()[:16]
+                # Use relative path as source_file so same-named files in
+                # different subdirectories remain distinguishable in metadata,
+                # source_filter queries, and reporting.
+                meta = ChunkMetadata(
+                    source_file=rel.as_posix(),
+                    document_title=title,
+                    page_or_section=f"page {page}" if page else f"chunk {i + 1}",
+                    topic_tags=[],
+                    hash=content_hash,
+                )
+                chunks.append(
+                    Chunk(metadata=meta, text=chunk_str).model_dump(exclude={"embedding"})
+                )
 
         # Mirror subdirectory structure so same-stem files in different
         # subdirectories don't overwrite each other's chunk file.

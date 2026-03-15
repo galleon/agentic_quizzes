@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import tempfile
 from pathlib import Path
@@ -28,15 +27,14 @@ def main() -> None:
     for chunk_file in chunk_files:
         print(f"Embedding: {chunk_file.relative_to(chunks_dir)}")
         count = 0
-        # Stream line-by-line through an atomically-created temp file to keep
-        # memory bounded and avoid partial-file corruption on interrupt.
-        fd, tmp_path = tempfile.mkstemp(dir=chunk_file.parent, suffix=".tmp")
-        tmp = Path(tmp_path)
+        # Use NamedTemporaryFile so the fd is owned and closed by the context
+        # manager — no fd leak even if chunk_file.open() or processing fails.
+        ntf = tempfile.NamedTemporaryFile(
+            delete=False, dir=chunk_file.parent, suffix=".tmp", mode="w", encoding="utf-8"
+        )
+        tmp = Path(ntf.name)
         try:
-            with (
-                chunk_file.open(encoding="utf-8") as src,
-                os.fdopen(fd, "w", encoding="utf-8") as dst,
-            ):
+            with ntf, chunk_file.open(encoding="utf-8") as src:
                 for i, line in enumerate(src):
                     if not line.strip():
                         continue
@@ -45,7 +43,7 @@ def main() -> None:
                         chunk["embedding"] = embed(chunk["text"])
                         if (i + 1) % 10 == 0:
                             print(f"  {i + 1} chunks processed")
-                    dst.write(json.dumps(chunk) + "\n")
+                    ntf.write(json.dumps(chunk) + "\n")
                     count += 1
             tmp.replace(chunk_file)
         except Exception:

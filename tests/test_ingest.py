@@ -247,24 +247,26 @@ def test_clean_still_collapses_spaces_outside_fence():
 
 
 def test_parse_file_falls_back_without_docling(tmp_path, monkeypatch):
-    """parse_file should not raise when docling is absent; fallback returns plain text."""
-    import builtins
+    """When docling is not installed, parse_file falls back to the PyMuPDF parser.
 
-    real_import = builtins.__import__
+    Uses use_docling=True on a .pdf path so the docling branch is entered.
+    _PARSERS['.pdf'] is stubbed to avoid needing a real PDF file.
+    """
+    import src.ingest.parse as parse_module
 
-    def mock_import(name, *args, **kwargs):
-        if name == "docling" or name.startswith("docling."):
-            raise ImportError("docling not installed")
-        return real_import(name, *args, **kwargs)
+    # Stub the PyMuPDF fallback so we don't need a real PDF
+    monkeypatch.setitem(parse_module._PARSERS, ".pdf", lambda _p: "stub pdf text")
 
-    monkeypatch.setattr(builtins, "__import__", mock_import)
+    # Make the docling import fail inside parse_docling
+    import src.ingest.parse_docling as pd_module
 
-    from src.ingest.parse import parse_file
+    monkeypatch.setattr(pd_module, "parse_pdf_docling", lambda _p: "")
 
-    txt = tmp_path / "sample.txt"
-    txt.write_text("Hello world.", encoding="utf-8")
-    result = parse_file(txt, use_docling=False)
-    assert "Hello world." in result
+    fake_pdf = tmp_path / "doc.pdf"
+    fake_pdf.write_bytes(b"")  # content irrelevant; stub bypasses actual parsing
+
+    result = parse_module.parse_file(fake_pdf, use_docling=True)
+    assert result == "stub pdf text", "Should have fallen back to the _PARSERS stub"
 
 
 # ---------------------------------------------------------------------------

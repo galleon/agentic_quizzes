@@ -1,0 +1,39 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+dist/
+build/
+.ruff_cache/
+uv.lock
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# Data pipeline artifacts (generated, not source)
+data/extracted/
+data/cleaned/
+data/chunks/
+data/metadata/manifest.jsonl
+
+# Vector store
+vectorstore/qdrant/
+
+# Outputs (generated)
+outputs/quizzes/
+outputs/answer_keys/
+outputs/rationales/
+outputs/reports/
+
+# Notebooks
+.ipynb_checkpoints/
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

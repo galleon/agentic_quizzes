@@ -1,0 +1,47 @@
+"""Build/update data/metadata/manifest.jsonl from chunk files."""
+
+from __future__ import annotations
+
+import json
+from datetime import datetime
+
+from src.common.config import get_settings, project_root
+
+
+def main() -> None:
+    cfg = get_settings()
+    root = project_root()
+    chunks_dir = root / cfg.ingest.chunks_dir
+    meta_dir = root / cfg.ingest.metadata_dir
+    meta_dir.mkdir(parents=True, exist_ok=True)
+    manifest_path = root / cfg.ingest.manifest_file
+
+    entries = []
+    for chunk_file in sorted(
+        chunks_dir.rglob("*.chunks.jsonl"),
+        key=lambda p: p.relative_to(chunks_dir).as_posix(),
+    ):
+        with chunk_file.open(encoding="utf-8") as fh:
+            num_chunks = sum(1 for line in fh if line.strip())
+        rel = chunk_file.relative_to(chunks_dir)
+        entries.append(
+            {
+                # Use the full relative POSIX path (without .chunks.jsonl suffix) as
+                # the doc_id so same-basename files in different subdirectories are
+                # always distinguishable in the manifest.
+                "doc_id": rel.with_suffix("").with_suffix("").as_posix(),
+                "chunk_file": chunk_file.relative_to(root).as_posix(),
+                "num_chunks": num_chunks,
+                "ingested_at": datetime.now().isoformat(),
+            }
+        )
+
+    with manifest_path.open("w", encoding="utf-8") as fh:
+        for e in entries:
+            fh.write(json.dumps(e) + "\n")
+
+    print(f"Manifest updated: {len(entries)} documents → {manifest_path}")
+
+
+if __name__ == "__main__":
+    main()

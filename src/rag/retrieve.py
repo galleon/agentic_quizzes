@@ -1,0 +1,57 @@
+"""Query Qdrant for top-k chunks relevant to a topic."""
+
+from __future__ import annotations
+
+from functools import lru_cache
+
+from src.common.config import get_settings
+from src.common.ollama_client import embed
+from src.rag.index import get_client
+
+
+@lru_cache(maxsize=1)
+def _cached_client():
+    """Return a cached Qdrant client so repeated retrieve() calls reuse the connection."""
+    return get_client(get_settings())
+
+
+def retrieve(
+    query: str,
+    top_k: int | None = None,
+    source_filter: list[str] | None = None,
+) -> list[dict]:
+    """Return top-k payload dicts (including 'text') for a query string."""
+    cfg = get_settings()
+    top_k = cfg.quiz.top_k_chunks if top_k is None else top_k
+    client = _cached_client()
+
+    query_vec = embed(query)
+
+    search_filter = None
+    if source_filter:
+        from qdrant_client.models import FieldCondition, Filter, MatchAny
+
+        search_filter = Filter(
+            must=[
+                FieldCondition(
+                    key="source_file",
+                    match=MatchAny(any=source_filter),
+                )
+            ]
+        )
+
+    response = client.query_points(
+        collection_name=cfg.qdrant.collection,
+        query=query_vec,
+        limit=top_k,
+        query_filter=search_filter,
+        with_payload=True,
+    )
+
+    results = []
+    for r in response.points:
+        payload = r.payload or {}
+        if not payload.get("text"):
+            continue  # skip points with missing payload or empty text
+        results.append({**payload, "score": r.score})
+    return results

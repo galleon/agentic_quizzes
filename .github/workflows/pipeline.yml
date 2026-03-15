@@ -1,0 +1,77 @@
+name: Pipeline quality gate
+
+# Runs on the self-hosted GPU runner when prompt engineering or pipeline
+# logic changes. Validates that quiz generation quality hasn't regressed.
+#
+# Setup: install the GitHub Actions self-hosted runner on the remote host
+# that already runs vLLM/docling, label it `self-hosted,gpu`.
+# See: https://docs.github.com/en/actions/hosting-your-own-runners
+
+on:
+  # Manual trigger only — automatic push trigger is disabled until a
+  # self-hosted GPU runner is registered (label: [self-hosted, gpu]).
+  # Once the runner is available, re-add the push trigger with path filters.
+  # See: https://docs.github.com/en/actions/hosting-your-own-runners
+  workflow_dispatch:
+    inputs:
+      topic:
+        description: "Quiz topic"
+        required: false
+        default: "GPU monitoring with DCGM"
+      num_questions:
+        description: "Number of questions"
+        required: false
+        default: "10"
+      difficulty:
+        description: "Difficulty"
+        required: false
+        default: "medium"
+
+jobs:
+  pipeline:
+    name: Run pipeline + quality gate
+    # Replace with your runner label once configured
+    runs-on: [self-hosted, gpu]
+
+    env:
+      TOPIC: ${{ github.event.inputs.topic || 'GPU monitoring with DCGM' }}
+      NUM:   ${{ github.event.inputs.num_questions || '10' }}
+      DIFF:  ${{ github.event.inputs.difficulty || 'medium' }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v4
+        with:
+          version: "latest"
+
+      - name: Sync deps
+        run: uv sync --group dev
+
+      - name: Ingest documents
+        run: bash nanoclaw/tasks/ingest.sh
+
+      - name: Build vector index
+        run: bash nanoclaw/tasks/build_index.sh
+
+      - name: Generate quiz
+        run: |
+          bash nanoclaw/tasks/generate_quiz.sh "$TOPIC" "$NUM" "$DIFF"
+
+      - name: Quality gate
+        run: |
+          uv run python3 scripts/quality_gate.py \
+            --topic "$TOPIC" \
+            --threshold 0.70
+
+      - name: Upload quiz artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quiz-${{ github.sha }}
+          path: |
+            outputs/quizzes/
+            outputs/answer_keys/
+            outputs/rationales/
+            outputs/reports/
+          retention-days: 30

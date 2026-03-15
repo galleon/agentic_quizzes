@@ -1,145 +1,53 @@
-# Project Operating Rules
+# Quiz RAG Agent (NanoClaw)
 
-This repository is for grounded quiz generation from PDF source material.
+Generates grounded quizzes from source documents using local LLMs via Ollama + Qdrant.
 
-## Mission
+## Rules
+- **Never modify** files under `data/raw/`.
+- Always preserve provenance: source document → chunk → generated question.
+- Never generate an answer without retrieved supporting chunks.
+- Prefer deterministic scripts in `nanoclaw/tasks/` over ad hoc shell one-liners.
+- Write reports to `outputs/reports/`.
+- Keep responses concise; do not emit long reasoning traces.
+- Use `uv run` or activate `.venv` before running Python modules.
 
-Turn PDF documents into high-quality quiz artifacts with explicit source grounding, verification, and reproducible outputs.
+## Stack
+- **Generation**: Ollama (`qwen2.5:instruct` default, `qwen3:latest` optional with `think: false`)
+- **Embeddings**: Ollama `nomic-embed-text` (separate from generation model)
+- **Vector store**: Qdrant (local file-based via `qdrant-client`)
+- **PDF parsing**: PyMuPDF (`pymupdf`)
+- **Config**: `nanoclaw/config/settings.yaml`
 
-The preferred workflow is:
-
-1. Extract PDF text into chunked JSON
-2. Generate quiz candidates from chunks
-3. Verify each candidate against the chunk source
-4. Export final quiz artifacts
-5. Summarize what was produced and what failed
-
-## Hard Operating Constraints
-
-You must behave as if you are operating in a restricted workspace.
-
-- Only work inside:
-  - `pdfs/`
-  - `outputs/`
-  - `tmp/`
-- Prefer read/inspect actions before write actions.
-- Never claim success unless the expected output files actually exist.
-- Never say a quiz has been generated unless you have inspected the output file paths.
-- Never use the network unless the human explicitly asks for it.
-- Never install packages unless the human explicitly asks for it.
-- Never modify files outside this repository.
-- Never delete source PDFs.
-- Never overwrite final outputs without first checking whether they already exist.
-
-## Preferred Tooling
-
-Use existing local tools before inventing new code.
-
-Preferred commands:
-
+## Main tasks
 ```bash
-python quiz_tools.py extract_pdf ...
-python quiz_tools.py generate_quiz ...
-python quiz_tools.py verify_quiz ...
-python quiz_tools.py export_quiz ...
+bash nanoclaw/tasks/ingest.sh
+bash nanoclaw/tasks/build_index.sh
+bash nanoclaw/tasks/generate_quiz.sh "GPU monitoring" 10 medium
+bash nanoclaw/tasks/eval_quiz.sh "GPU monitoring"
 ```
 
-If these commands fail, inspect the error, explain the failure briefly, and adapt conservatively.
+## Pipeline overview
+1. **Ingest** — parse PDFs → clean text → chunk → manifest
+2. **Index** — embed chunks → upsert to Qdrant
+3. **Generate** — retrieve top-k chunks → generate MCQ/short-answer/T-F
+4. **Validate** — check grounding → reject hallucinated answers → export
 
-## Quiz Quality Rules
+## Data layout
+```
+data/raw/        # immutable source files (PDF, DOCX, HTML)
+data/extracted/  # raw text per document
+data/cleaned/    # normalized text
+data/chunks/     # chunk JSONL files
+data/metadata/   # manifest.jsonl
+vectorstore/     # Qdrant collection files
+outputs/quizzes/         # generated quizzes (MD + JSON)
+outputs/answer_keys/     # answer keys
+outputs/rationales/      # per-question rationale
+outputs/reports/         # ingest/index run reports
+```
 
-Every final quiz item must be:
+## Chunk metadata fields
+`chunk_id`, `source_file`, `document_title`, `page_or_section`, `document_date`, `topic_tags`, `language`, `hash`
 
-- directly supported by the PDF source text
-- answerable without external knowledge
-- clear and unambiguous
-- written in clean language
-- associated with source page metadata
-- associated with a supporting excerpt
-- verified before export
-
-Avoid:
-
-- trivia with no learning value
-- distractors that are absurdly easy
-- explanations that introduce unsupported facts
-- questions whose answer depends on unstated background knowledge
-- duplicate or near-duplicate questions
-
-Prefer:
-
-- definitions
-- comparisons
-- processes
-- cause/effect
-- decision criteria
-- distinctions between similar concepts
-- practical interpretation of source content
-
-## Output Expectations
-
-For each input PDF, produce a dedicated folder under `outputs/`.
-
-Expected files may include:
-
-- `*.chunks.json`
-- `*.raw_quiz.json`
-- `*.verified.json`
-- `*.quiz.json`
-- `*.quiz.jsonl`
-- `*.quiz.md`
-
-At the end of a run, write or update a concise summary file documenting:
-
-- input file
-- number of chunks
-- number of raw items
-- number of verified items
-- exported file paths
-- issues encountered
-
-## Failure Handling
-
-When a step fails:
-
-1. Inspect the exact error
-2. Check whether the expected intermediate file exists
-3. Retry with smaller scope if appropriate
-4. Do not loop forever
-5. Prefer one conservative retry over repeated blind retries
-
-Examples of valid conservative retries:
-
-- fewer questions per chunk
-- fewer chunks in one pass
-- re-running verification separately
-- exporting only after inspecting verified outputs
-
-## Editing Policy
-
-You may improve helper scripts or prompts only when necessary for the current task.
-
-Before editing core workflow files:
-
-- first inspect them
-- explain the reason briefly
-- keep changes minimal
-- preserve compatibility with the existing output schema
-
-## Self-Improvement Policy
-
-You may propose improvements to this `CLAUDE.md` or to Skills, but do not silently rewrite them during normal quiz runs.
-
-Only update operational instructions when one of these is true:
-
-- the human explicitly asks for improvement
-- repeated failures show a stable pattern
-- quality review identifies a recurring weakness
-- a new local tool becomes the preferred path
-
-When proposing instruction updates:
-
-- prefer small diffs
-- explain the observed issue
-- explain why the change should help
-- keep a changelog entry in the proposal
+## Quiz item fields
+`question_id`, `question_type`, `difficulty`, `question`, `choices`, `answer_index`, `answer`, `rationale`, `supporting_chunk_ids`, `source_files`, `grounding_verdict`, `confidence_flag`

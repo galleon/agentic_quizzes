@@ -1,0 +1,43 @@
+# NanoClaw configuration
+
+ollama:
+  base_url: "http://localhost:11434"
+  generation_model: "qwen3.5-no-think:latest"
+  embedding_model: "nomic-embed-text"
+  # Generation params — tuned to suppress verbosity
+  generation_options:
+    temperature: 0.2      # Qwen team recommends 0.6 for general use; 0.2 suits factual quiz work
+    top_p: 0.9
+    top_k: 20
+    num_predict: 4096
+    repeat_penalty: 1.1   # discourages rambling / repetition
+    think: false          # Qwen3 only: top-level API param, not inside options
+
+qdrant:
+  mode: "local"           # "local" = file-based (no server); "server" = qdrant daemon
+  local_path: "vectorstore/qdrant"
+  server_url: "http://localhost:6333"   # used only when mode=server
+  collection: "quiz_rag"
+  vector_size: 768        # nomic-embed-text output dim
+
+ingest:
+  raw_dir: "data/raw"
+  extracted_dir: "data/extracted"
+  cleaned_dir: "data/cleaned"
+  chunks_dir: "data/chunks"
+  metadata_dir: "data/metadata"
+  manifest_file: "data/metadata/manifest.jsonl"
+  supported_extensions: [".pdf", ".html", ".md", ".txt"]  # .docx pending python-docx integration
+  chunk_size: 512         # words (text.split()); ~2000 chars / ~500 tokens per chunk
+  chunk_overlap: 64       # words
+
+quiz:
+  outputs_dir: "outputs"
+  quizzes_dir: "outputs/quizzes"
+  answer_keys_dir: "outputs/answer_keys"
+  rationales_dir: "outputs/rationales"
+  reports_dir: "outputs/reports"
+  default_num_questions: 10
+  default_difficulty: "medium"          # easy | medium | hard
+  default_question_types: ["mcq", "short_answer", "true_false"]
+  top_k_chunks: 6                       # retrieved chunks per query

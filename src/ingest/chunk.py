@@ -26,6 +26,12 @@ def chunk_text(
     overlap: int = 64,
 ) -> list[str]:
     """Split text into overlapping chunks of approximately chunk_size words."""
+    if chunk_size <= 0:
+        raise ValueError(f"chunk_size must be > 0, got {chunk_size}")
+    if overlap < 0:
+        raise ValueError(f"overlap must be >= 0, got {overlap}")
+    if overlap >= chunk_size:
+        raise ValueError(f"overlap ({overlap}) must be < chunk_size ({chunk_size})")
     words = text.split()
     chunks = []
     step = max(1, chunk_size - overlap)

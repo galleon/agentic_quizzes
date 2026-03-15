@@ -61,7 +61,7 @@ def test_quiz_item_defaults():
     assert item.question_id  # uuid assigned
     assert item.difficulty == "medium"
     assert item.grounding_verdict == "unverified"
-    assert item.confidence_flag == "ok"
+    assert item.confidence_flag == "low"
 
 
 def test_quiz_item_round_trip():

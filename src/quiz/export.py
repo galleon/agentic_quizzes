@@ -1,9 +1,10 @@
-"""Export validated quiz to Markdown, JSON, and CSV formats."""
+"""Export quiz to Markdown, JSON, and CSV formats."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+import sys
 
 from src.common.config import get_settings, project_root
 from src.common.models import Quiz
@@ -98,6 +99,14 @@ def main() -> None:
         raise FileNotFoundError(f"Quiz not found: {quiz_path}")
 
     quiz = Quiz.model_validate_json(quiz_path.read_text(encoding="utf-8"))
+
+    unverified = sum(1 for i in quiz.items if i.grounding_verdict == "unverified")
+    if unverified:
+        print(
+            f"Warning: {unverified} item(s) have grounding_verdict='unverified'."
+            " Run validate first for a fully grounded export.",
+            file=sys.stderr,
+        )
 
     quizzes_dir = root / cfg.quiz.quizzes_dir
     keys_dir = root / cfg.quiz.answer_keys_dir

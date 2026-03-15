@@ -56,8 +56,8 @@ class QuizConfig(BaseModel):
     rationales_dir: str = "outputs/rationales"
     reports_dir: str = "outputs/reports"
     default_num_questions: int = 10
-    default_difficulty: str = "medium"
-    default_question_types: list[str] = Field(
+    default_difficulty: Literal["easy", "medium", "hard"] = "medium"
+    default_question_types: list[Literal["mcq", "short_answer", "true_false"]] = Field(
         default_factory=lambda: ["mcq", "short_answer", "true_false"]
     )
     top_k_chunks: int = 6

@@ -39,7 +39,7 @@ class QuizItem(BaseModel):
     supporting_chunk_ids: list[str] = Field(default_factory=list)
     source_files: list[str] = Field(default_factory=list)
     grounding_verdict: Literal["supported", "partial", "hallucinated", "unverified"] = "unverified"
-    confidence_flag: Literal["ok", "low", "rejected"] = "ok"
+    confidence_flag: Literal["ok", "low", "rejected"] = "low"
 
 
 class Quiz(BaseModel):

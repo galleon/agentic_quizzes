@@ -26,7 +26,9 @@ def _load_system_prompt() -> str:
 
 
 def _build_validate_prompt(item: QuizItem, chunks: list[dict]) -> str:
-    chunk_texts = "\n\n---\n\n".join(f"[{c['chunk_id']}] {c['text']}" for c in chunks)
+    chunk_texts = "\n\n---\n\n".join(
+        f"[{c.get('chunk_id', '?')}] {c.get('text', '')}" for c in chunks
+    )
     answer = item.answer or (
         item.choices[item.answer_index]
         if item.choices

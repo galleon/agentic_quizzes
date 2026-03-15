@@ -142,6 +142,26 @@ def test_split_tilde_fence():
     assert any("echo hello" in b for b in blocks)
 
 
+def test_split_fence_info_string_not_treated_as_closer():
+    # A line like ```python inside a ~~~-opened fence must NOT close it.
+    text = "~~~\nsome code\n```python\nmore code\n~~~"
+    blocks = _split_into_blocks(text)
+    fence_blocks = [b for b in blocks if b.startswith("~~~")]
+    assert len(fence_blocks) == 1, "Opening info-string line must not close the fence"
+    assert "```python" in fence_blocks[0]
+    assert "more code" in fence_blocks[0]
+
+
+def test_clean_fence_info_string_not_treated_as_closer():
+    # ```python inside a ~~~-opened fence must NOT close the fence early.
+    raw = "~~~\n    indented code\n```python\n    more indented\n~~~\noutside   spaces"
+    result = clean_text(raw)
+    assert "    indented code" in result
+    assert "    more indented" in result
+    # Outside the fence, spaces should still be collapsed
+    assert "outside spaces" in result
+
+
 def test_split_empty_input():
     assert _split_into_blocks("") == []
 
@@ -257,7 +277,8 @@ def test_parse_file_falls_back_without_docling(tmp_path, monkeypatch):
     # Stub the PyMuPDF fallback so we don't need a real PDF
     monkeypatch.setitem(parse_module._PARSERS, ".pdf", lambda _p: "stub pdf text")
 
-    # Make the docling import fail inside parse_docling
+    # Stub parse_pdf_docling to return "" (simulating any failure: ImportError,
+    # conversion error, or empty output) so the fallback branch is exercised.
     import src.ingest.parse_docling as pd_module
 
     monkeypatch.setattr(pd_module, "parse_pdf_docling", lambda _p: "")

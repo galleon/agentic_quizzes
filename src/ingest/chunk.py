@@ -79,8 +79,8 @@ def _split_into_blocks(text: str) -> list[str]:
 
         if fence_opener is not None:
             current.append(line)
-            if stripped.startswith(fence_opener):
-                # Closing fence matched the opener — flush the complete code block
+            if stripped.lstrip(fence_opener[0]) == "" and len(stripped) >= len(fence_opener):
+                # Closing fence: only delimiter chars, no info string (e.g. not ```python)
                 blocks.append("\n".join(current))
                 current = []
                 fence_opener = None

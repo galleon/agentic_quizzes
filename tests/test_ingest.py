@@ -269,6 +269,23 @@ def test_parse_file_falls_back_without_docling(tmp_path, monkeypatch):
     assert result == "stub pdf text", "Should have fallen back to the _PARSERS stub"
 
 
+def test_parse_pdf_docling_import_error(tmp_path, monkeypatch):
+    """parse_pdf_docling returns '' without raising when docling is not installed."""
+    import sys
+
+    import src.ingest.parse_docling as pd_module
+
+    # Setting a module entry to None makes `import <name>` raise ImportError.
+    monkeypatch.setitem(sys.modules, "docling", None)
+    monkeypatch.setitem(sys.modules, "docling.document_converter", None)
+
+    fake_pdf = tmp_path / "doc.pdf"
+    fake_pdf.write_bytes(b"")
+
+    result = pd_module.parse_pdf_docling(fake_pdf)
+    assert result == "", "ImportError inside parse_pdf_docling should return empty string"
+
+
 # ---------------------------------------------------------------------------
 # DOCLING_MARKER constant sanity check
 # ---------------------------------------------------------------------------

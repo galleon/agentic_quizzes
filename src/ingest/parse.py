@@ -38,8 +38,10 @@ _PARSERS = {
 def parse_file(path: Path, use_docling: bool = False) -> str:
     """Parse a single file to text.
 
-    When *use_docling* is True and the file is a PDF, docling is tried first.
-    On ImportError or conversion failure, falls back to PyMuPDF automatically.
+    When *use_docling* is True and the file is a PDF, ``parse_pdf_docling`` is
+    called first.  That function handles ImportError and conversion errors
+    internally, returning an empty string on any failure.  An empty result
+    causes this function to fall back to the ``_PARSERS`` entry (PyMuPDF).
     """
     suffix = path.suffix.lower()
     if use_docling and suffix == ".pdf":

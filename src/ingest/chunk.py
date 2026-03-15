@@ -57,33 +57,33 @@ def _split_into_blocks(text: str) -> list[str]:
     """
     blocks: list[str] = []
     current: list[str] = []
-    in_fence = False
+    fence_opener: str | None = None  # delimiter that opened the current fence (``` or ~~~)
     in_table = False
 
     for line in text.splitlines():
         stripped = line.strip()
 
-        # ---- Code fence toggle ----
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            if not in_fence:
-                # Flush any pending paragraph before opening fence
-                if current:
-                    block = "\n".join(current).strip()
-                    if block:
-                        blocks.append(block)
-                    current = []
-                in_fence = True
-            else:
-                in_fence = False
-            current.append(line)
-            if not in_fence:
-                # Closing fence — flush the complete code block
-                blocks.append("\n".join(current))
+        # ---- Code fence handling ----
+        # Track the opening delimiter so a mismatched marker inside the fence
+        # (e.g. a ``` line inside a ~~~ block) does not prematurely close it.
+        if fence_opener is None and (stripped.startswith("```") or stripped.startswith("~~~")):
+            # Opening a new fence: flush any pending paragraph first
+            if current:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
                 current = []
+            fence_opener = "```" if stripped.startswith("```") else "~~~"
+            current.append(line)
             continue
 
-        if in_fence:
+        if fence_opener is not None:
             current.append(line)
+            if stripped.startswith(fence_opener):
+                # Closing fence matched the opener — flush the complete code block
+                blocks.append("\n".join(current))
+                current = []
+                fence_opener = None
             continue
 
         # ---- Table detection (contiguous pipe-prefixed lines) ----
@@ -126,7 +126,7 @@ def _split_into_blocks(text: str) -> list[str]:
 
     # Flush remainder
     if current:
-        if in_fence:
+        if fence_opener is not None:
             # Unclosed fence — emit as-is
             blocks.append("\n".join(current))
         elif in_table:

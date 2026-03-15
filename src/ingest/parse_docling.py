@@ -22,7 +22,7 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     except ImportError:
         print(
             "docling not installed — falling back to PyMuPDF.\n"
-            "To enable rich extraction: uv add --group docling docling docling-ibm-models",
+            "To enable rich extraction: uv sync --group docling",
             file=sys.stderr,
         )
         return ""

@@ -19,14 +19,20 @@ def clean_text(raw: str) -> str:
 
     # Collapse consecutive spaces/tabs per line, but skip lines inside code
     # fences so that indentation (e.g. Python indent) is not destroyed.
+    # Track the opening fence delimiter (``` or ~~~) to avoid a mismatched
+    # delimiter (e.g. a ``` line inside a ~~~ block) from prematurely closing
+    # the fence.
     cleaned: list[str] = []
-    in_fence = False
+    fence_opener: str | None = None
     for line in text.splitlines():
         stripped = line.strip()
-        if stripped.startswith("```") or stripped.startswith("~~~"):
-            in_fence = not in_fence
+        if fence_opener is None and (stripped.startswith("```") or stripped.startswith("~~~")):
+            fence_opener = "```" if stripped.startswith("```") else "~~~"
             cleaned.append(line.rstrip())
-        elif in_fence:
+        elif fence_opener is not None and stripped.startswith(fence_opener):
+            fence_opener = None
+            cleaned.append(line.rstrip())
+        elif fence_opener is not None:
             cleaned.append(line.rstrip())
         else:
             cleaned.append(_MULTI_SPACE.sub(" ", line).rstrip())

@@ -2,8 +2,14 @@
 
 import pytest
 
-from src.ingest.chunk import chunk_text
+from src.ingest.chunk import (
+    _last_heading,
+    _split_into_blocks,
+    chunk_structured_markdown,
+    chunk_text,
+)
 from src.ingest.clean import clean_text
+from src.ingest.parse_docling import DOCLING_MARKER
 
 # ---------------------------------------------------------------------------
 # clean_text
@@ -89,6 +95,189 @@ def test_chunk_no_empty_chunks():
     text = " ".join(f"w{i}" for i in range(300))
     for chunk in chunk_text(text, chunk_size=50, overlap=10):
         assert chunk.strip() != ""
+
+
+# ---------------------------------------------------------------------------
+# _split_into_blocks
+# ---------------------------------------------------------------------------
+
+
+def test_split_paragraphs():
+    text = "Para one.\n\nPara two.\n\nPara three."
+    blocks = _split_into_blocks(text)
+    assert len(blocks) == 3
+    assert blocks[0] == "Para one."
+    assert blocks[2] == "Para three."
+
+
+def test_split_heading_starts_new_block():
+    text = "Some intro text.\n## Section A\nSection body."
+    blocks = _split_into_blocks(text)
+    assert any("## Section A" in b for b in blocks)
+    assert any("Some intro text." in b for b in blocks)
+
+
+def test_split_table_is_single_block():
+    rows = "| Col A | Col B |\n|-------|-------|\n| val 1 | val 2 |\n| val 3 | val 4 |"
+    text = f"Intro.\n\n{rows}\n\nOutro."
+    blocks = _split_into_blocks(text)
+    table_blocks = [b for b in blocks if b.startswith("|")]
+    assert len(table_blocks) == 1, "Table should be a single block"
+    assert "val 3" in table_blocks[0]
+    assert "val 1" in table_blocks[0]
+
+
+def test_split_code_fence_is_single_block():
+    text = "Intro.\n\n```python\ndef foo():\n    return 42\n```\n\nOutro."
+    blocks = _split_into_blocks(text)
+    fence_blocks = [b for b in blocks if b.startswith("```")]
+    assert len(fence_blocks) == 1
+    assert "def foo():" in fence_blocks[0]
+    assert "return 42" in fence_blocks[0]
+
+
+def test_split_tilde_fence():
+    text = "~~~bash\necho hello\n~~~"
+    blocks = _split_into_blocks(text)
+    assert any("echo hello" in b for b in blocks)
+
+
+def test_split_empty_input():
+    assert _split_into_blocks("") == []
+
+
+# ---------------------------------------------------------------------------
+# _last_heading
+# ---------------------------------------------------------------------------
+
+
+def test_last_heading_found():
+    blocks = ["## GPU Monitoring", "Some paragraph.", "More text."]
+    assert _last_heading(blocks, 2) == "GPU Monitoring"
+
+
+def test_last_heading_none():
+    blocks = ["Just a paragraph.", "Another paragraph."]
+    assert _last_heading(blocks, 1) == ""
+
+
+# ---------------------------------------------------------------------------
+# chunk_structured_markdown
+# ---------------------------------------------------------------------------
+
+
+def test_chunk_structured_basic():
+    body = "## Section\n\n" + " ".join(f"word{i}" for i in range(30))
+    chunks = chunk_structured_markdown(body, chunk_size=20, overlap=3)
+    assert len(chunks) >= 1
+    for text, section in chunks:
+        assert text.strip()
+
+
+def test_chunk_structured_section_heading():
+    body = "## GPU Health\n\n" + " ".join(f"w{i}" for i in range(10))
+    chunks = chunk_structured_markdown(body, chunk_size=50, overlap=5)
+    # All chunks should report the heading as their section
+    for _, section in chunks:
+        assert section == "GPU Health"
+
+
+def test_chunk_structured_table_not_split():
+    table = "\n".join(f"| col{i} | val{i} |" for i in range(20))
+    body = f"## Commands\n\n{table}"
+    chunks = chunk_structured_markdown(body, chunk_size=10, overlap=2)
+    # The table block (20+ rows) exceeds chunk_size=10 and must still be emitted whole
+    table_chunks = [t for t, _ in chunks if t.startswith("|")]
+    assert len(table_chunks) == 1
+    assert "col0" in table_chunks[0]
+    assert "col19" in table_chunks[0]
+
+
+def test_chunk_structured_oversized_block_emitted():
+    oversized = " ".join(f"w{i}" for i in range(200))
+    chunks = chunk_structured_markdown(oversized, chunk_size=50, overlap=5)
+    assert len(chunks) == 1
+    assert len(chunks[0][0].split()) == 200
+
+
+def test_chunk_structured_code_fence_not_split():
+    code_lines = "\n".join(f"    line_{i} = {i}" for i in range(30))
+    body = f"```python\n{code_lines}\n```"
+    chunks = chunk_structured_markdown(body, chunk_size=10, overlap=2)
+    fence_chunks = [t for t, _ in chunks if t.startswith("```")]
+    assert len(fence_chunks) == 1
+
+
+def test_chunk_structured_validation_errors():
+    with pytest.raises(ValueError, match="chunk_size"):
+        chunk_structured_markdown("text", chunk_size=0, overlap=0)
+    with pytest.raises(ValueError, match="overlap"):
+        chunk_structured_markdown("text", chunk_size=10, overlap=-1)
+    with pytest.raises(ValueError, match="overlap"):
+        chunk_structured_markdown("text", chunk_size=10, overlap=10)
+
+
+def test_chunk_structured_empty_input():
+    assert chunk_structured_markdown("", chunk_size=50, overlap=5) == []
+
+
+# ---------------------------------------------------------------------------
+# clean_text — code fence preservation
+# ---------------------------------------------------------------------------
+
+
+def test_clean_preserves_code_fence_indentation():
+    raw = "```python\ndef foo():\n    return 42\n```"
+    result = clean_text(raw)
+    assert "    return 42" in result, "4-space indentation inside code fence should be preserved"
+
+
+def test_clean_still_collapses_spaces_outside_fence():
+    raw = "outside   the   fence\n```\ncode  here\n```\nafter   fence"
+    result = clean_text(raw)
+    lines = result.splitlines()
+    # First and last lines (outside fence) should have spaces collapsed
+    assert "  " not in lines[0]
+    assert "  " not in lines[-1]
+
+
+# ---------------------------------------------------------------------------
+# parse_file fallback when docling not installed
+# ---------------------------------------------------------------------------
+
+
+def test_parse_file_falls_back_without_docling(tmp_path, monkeypatch):
+    """parse_file should not raise when docling is absent; fallback returns plain text."""
+    import builtins
+
+    real_import = builtins.__import__
+
+    def mock_import(name, *args, **kwargs):
+        if name == "docling" or name.startswith("docling."):
+            raise ImportError("docling not installed")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", mock_import)
+
+    from src.ingest.parse import parse_file
+
+    txt = tmp_path / "sample.txt"
+    txt.write_text("Hello world.", encoding="utf-8")
+    result = parse_file(txt, use_docling=False)
+    assert "Hello world." in result
+
+
+# ---------------------------------------------------------------------------
+# DOCLING_MARKER constant sanity check
+# ---------------------------------------------------------------------------
+
+
+def test_docling_marker_not_page_marker():
+    """The docling marker must not match the page-marker regex used in clean/chunk."""
+    import re
+
+    page_marker_re = re.compile(r"<!-- page \d+ -->")
+    assert not page_marker_re.fullmatch(DOCLING_MARKER)
 
 
 # ---------------------------------------------------------------------------

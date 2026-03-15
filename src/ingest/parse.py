@@ -35,8 +35,22 @@ _PARSERS = {
 }
 
 
-def parse_file(path: Path) -> str:
-    parser = _PARSERS.get(path.suffix.lower())
+def parse_file(path: Path, use_docling: bool = False) -> str:
+    """Parse a single file to text.
+
+    When *use_docling* is True and the file is a PDF, docling is tried first.
+    On ImportError or conversion failure, falls back to PyMuPDF automatically.
+    """
+    suffix = path.suffix.lower()
+    if use_docling and suffix == ".pdf":
+        from src.ingest.parse_docling import parse_pdf_docling
+
+        result = parse_pdf_docling(path)
+        if result:
+            return result
+        # Fall through to PyMuPDF below
+
+    parser = _PARSERS.get(suffix)
     if parser is None:
         print(f"  [skip] unsupported extension: {path.suffix}", file=sys.stderr)
         return ""
@@ -49,6 +63,10 @@ def main() -> None:
     raw_dir = root / cfg.ingest.raw_dir
     out_dir = root / cfg.ingest.extracted_dir
     out_dir.mkdir(parents=True, exist_ok=True)
+
+    use_docling = cfg.docling.enabled
+    if use_docling:
+        print("Docling extraction enabled (structured Markdown output).")
 
     # Intersect config extensions with _PARSERS: config controls which formats
     # are active (so users can narrow the set via settings.yaml), while _PARSERS
@@ -68,7 +86,7 @@ def main() -> None:
 
     for src_file in files:
         print(f"Parsing: {src_file.relative_to(raw_dir)}")
-        text = parse_file(src_file)
+        text = parse_file(src_file, use_docling=use_docling)
         if not text:
             skipped += 1
             report_lines.append(

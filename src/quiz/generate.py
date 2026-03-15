@@ -34,8 +34,9 @@ def _build_prompt(
     question_types: list[str],
 ) -> str:
     chunk_texts = "\n\n---\n\n".join(
-        f"[chunk_id: {c['chunk_id']}]"
-        f" (source: {c['source_file']}, {c['page_or_section']})\n{c['text']}"
+        f"[chunk_id: {c.get('chunk_id', '?')}]"
+        f" (source: {c.get('source_file', '?')}, {c.get('page_or_section', '?')})\n"
+        f"{c.get('text', '')}"
         for c in chunks
     )
     types_str = ", ".join(question_types)

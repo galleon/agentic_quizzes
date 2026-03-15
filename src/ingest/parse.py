@@ -50,10 +50,10 @@ def main() -> None:
     out_dir = root / cfg.ingest.extracted_dir
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Derive supported extensions from _PARSERS to keep config and
-    # implementation in sync; cfg.ingest.supported_extensions is used for
-    # documentation/defaults but the actual parsers are the source of truth.
-    supported = set(_PARSERS.keys())
+    # Intersect config extensions with _PARSERS: config controls which formats
+    # are active (so users can narrow the set via settings.yaml), while _PARSERS
+    # is the safety net ensuring we never attempt to parse an unsupported type.
+    supported = set(cfg.ingest.supported_extensions) & set(_PARSERS.keys())
     files = sorted(
         (p for p in raw_dir.rglob("*") if p.is_file() and p.suffix.lower() in supported),
         key=lambda p: p.relative_to(raw_dir).as_posix(),

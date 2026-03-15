@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -27,7 +28,7 @@ class OllamaConfig(BaseModel):
 
 
 class QdrantConfig(BaseModel):
-    mode: str = "local"
+    mode: Literal["local", "server"] = "local"
     local_path: str = "vectorstore/qdrant"
     server_url: str = "http://localhost:6333"
     collection: str = "quiz_rag"

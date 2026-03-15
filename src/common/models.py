@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import uuid
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -27,8 +27,8 @@ class Chunk(BaseModel):
 
 class QuizItem(BaseModel):
     question_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
-    question_type: str  # mcq | short_answer | true_false
-    difficulty: str = "medium"
+    question_type: Literal["mcq", "short_answer", "true_false"]
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
     question: str
     choices: Optional[list[str]] = None  # MCQ only; 4 options
     answer_index: Optional[int] = None  # MCQ: 0-3
@@ -36,15 +36,15 @@ class QuizItem(BaseModel):
     rationale: str = ""
     supporting_chunk_ids: list[str] = Field(default_factory=list)
     source_files: list[str] = Field(default_factory=list)
-    grounding_verdict: str = "unverified"  # supported | partial | hallucinated | unverified
-    confidence_flag: str = "ok"  # ok | low | rejected
+    grounding_verdict: Literal["supported", "partial", "hallucinated", "unverified"] = "unverified"
+    confidence_flag: Literal["ok", "low", "rejected"] = "ok"
 
 
 class Quiz(BaseModel):
     quiz_id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     topic: str
     source_scope: list[str] = Field(default_factory=list)
-    difficulty: str = "medium"
+    difficulty: Literal["easy", "medium", "hard"] = "medium"
     items: list[QuizItem] = Field(default_factory=list)
     generated_at: str = ""
     model: str = ""

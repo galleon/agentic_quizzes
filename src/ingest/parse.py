@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
@@ -16,7 +17,7 @@ def parse_text(path: Path) -> str:
 
 # Maps file extensions to their parser functions.
 # Keep in sync with IngestConfig.supported_extensions in src/common/config.py.
-_PARSERS: dict[str, object] = {
+_PARSERS: dict[str, Callable[[Path], str]] = {
     ".pdf": parse_pdf_docling,
     ".txt": parse_text,
     ".md": parse_text,
@@ -31,7 +32,7 @@ def parse_file(path: Path) -> str:
     if parser is None:
         print(f"  [skip] unsupported extension: {path.suffix}", file=sys.stderr)
         return ""
-    return parser(path)  # type: ignore[operator]
+    return parser(path)
 
 
 def main() -> None:

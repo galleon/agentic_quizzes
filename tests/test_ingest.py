@@ -128,9 +128,10 @@ def test_split_heading_attaches_to_following_paragraph():
 
 
 def test_split_heading_only_chunk_section_metadata():
-    # _last_heading must still work when a heading is part of a merged block
-    text = "## Section\n\nword " * 5
-    chunks = chunk_structured_markdown(text.strip(), chunk_size=20, overlap=2)
+    # _last_heading must still work when a heading is part of a merged block.
+    # Build the body so each "## Section" heading is on its own line.
+    body = "## Section\n\n" + " ".join(f"word{i}" for i in range(100))
+    chunks = chunk_structured_markdown(body, chunk_size=20, overlap=2)
     assert all(section == "Section" for _, section in chunks)
 
 

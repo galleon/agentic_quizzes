@@ -152,6 +152,16 @@ def test_split_fence_info_string_not_treated_as_closer():
     assert "more code" in fence_blocks[0]
 
 
+def test_split_longer_fence_not_closed_by_shorter():
+    # A 4-backtick fence must not be closed by a 3-backtick line inside it.
+    text = "````\nsome content\n```\nmore content\n````"
+    blocks = _split_into_blocks(text)
+    fence_blocks = [b for b in blocks if b.startswith("````")]
+    assert len(fence_blocks) == 1
+    assert "```" in fence_blocks[0]
+    assert "more content" in fence_blocks[0]
+
+
 def test_clean_fence_info_string_not_treated_as_closer():
     # ```python inside a ~~~-opened fence must NOT close the fence early.
     raw = "~~~\n    indented code\n```python\n    more indented\n~~~\noutside   spaces"

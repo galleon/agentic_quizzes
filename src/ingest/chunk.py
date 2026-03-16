@@ -11,6 +11,8 @@ from src.common.config import get_settings, project_root
 from src.common.models import Chunk, ChunkMetadata
 from src.ingest.parse_docling import DOCLING_MARKER
 
+_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
+
 
 def _extract_title(text: str, fallback: str) -> str:
     """Try to grab the first non-empty line as the document title."""
@@ -57,7 +59,7 @@ def _split_into_blocks(text: str) -> list[str]:
     """
     blocks: list[str] = []
     current: list[str] = []
-    fence_opener: str | None = None  # delimiter that opened the current fence (``` or ~~~)
+    fence_opener: str | None = None  # exact opening run, e.g. "```" or "````" or "~~~"
     in_table = False
 
     for line in text.splitlines():
@@ -66,14 +68,15 @@ def _split_into_blocks(text: str) -> list[str]:
         # ---- Code fence handling ----
         # Track the opening delimiter so a mismatched marker inside the fence
         # (e.g. a ``` line inside a ~~~ block) does not prematurely close it.
-        if fence_opener is None and (stripped.startswith("```") or stripped.startswith("~~~")):
+        m = _FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
+        if m:
             # Opening a new fence: flush any pending paragraph first
             if current:
                 block = "\n".join(current).strip()
                 if block:
                     blocks.append(block)
                 current = []
-            fence_opener = "```" if stripped.startswith("```") else "~~~"
+            fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
             current.append(line)
             continue
 

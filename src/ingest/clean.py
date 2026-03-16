@@ -10,6 +10,7 @@ from src.common.config import get_settings, project_root
 _MULTI_NEWLINE = re.compile(r"\n{3,}")
 _MULTI_SPACE = re.compile(r"[ \t]{2,}")
 _PAGE_MARKER = re.compile(r"<!-- page \d+ -->")
+_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
 
 
 def _is_closing_fence(stripped: str, opener: str) -> bool:
@@ -35,8 +36,9 @@ def clean_text(raw: str) -> str:
     fence_opener: str | None = None
     for line in text.splitlines():
         stripped = line.strip()
-        if fence_opener is None and (stripped.startswith("```") or stripped.startswith("~~~")):
-            fence_opener = "```" if stripped.startswith("```") else "~~~"
+        m = _FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
+        if m:
+            fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
             cleaned.append(line.rstrip())
         elif fence_opener is not None and _is_closing_fence(stripped, fence_opener):
             fence_opener = None

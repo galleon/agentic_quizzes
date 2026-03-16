@@ -25,8 +25,10 @@ dev = [
     "pre-commit>=3.7",
 ]
 # Required for PDF parsing (tables, code blocks, headings as structured Markdown).
-# Install with: uv sync --group docling
-# Note: pulls in torch + layout model weights (~several GB on first run).
+# Kept as an optional group because docling pulls in torch + layout model
+# weights (~several GB on first run) which is undesirable in CI.
+# Any environment that ingests PDFs must install this group:
+#   uv sync --group docling
 docling = [
     "docling>=2.0",
 ]

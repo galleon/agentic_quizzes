@@ -17,9 +17,16 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     Returns an empty string on conversion failure so the caller can skip
     the file rather than crashing the ingest pipeline.
 
-    Requires docling: ``uv sync --group docling``
+    Raises ``ImportError`` if docling is not installed — install with::
+
+        uv sync --group docling
     """
-    from docling.document_converter import DocumentConverter
+    try:
+        from docling.document_converter import DocumentConverter
+    except ImportError as exc:
+        raise ImportError(
+            "docling is required for PDF parsing. Install with: uv sync --group docling"
+        ) from exc
 
     try:
         converter = DocumentConverter()

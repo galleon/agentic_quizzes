@@ -333,7 +333,7 @@ def main() -> None:
                     Chunk(metadata=meta, text=chunk_str).model_dump(exclude={"embedding"})
                 )
         else:
-            # Word-based chunking with page-marker provenance (PyMuPDF path)
+            # Word-based chunking with page-marker provenance (.txt/.md/.html path)
             raw_path = extracted_dir / f.relative_to(in_dir)
             raw_text = raw_path.read_text(encoding="utf-8") if raw_path.exists() else text
             raw_chunks = chunk_text(body, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap)

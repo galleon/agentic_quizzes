@@ -333,9 +333,22 @@ def test_parse_file_unsupported_extension(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 
 
-def _fake_dc_module(md_output: str = "# Hello\n\nworld", raise_exc: Exception | None = None):
-    """Build a fake docling.document_converter module for testing."""
-    mod = types.ModuleType("docling.document_converter")
+def _patch_fake_docling(
+    monkeypatch: pytest.MonkeyPatch,
+    md_output: str = "# Hello\n\nworld",
+    raise_exc: Exception | None = None,
+) -> None:
+    """Inject a fake docling package + DocumentConverter into sys.modules.
+
+    ``from docling.document_converter import DocumentConverter`` first resolves
+    the parent package ``docling``, so both entries must be present in
+    sys.modules for the import to succeed in environments where docling is not
+    installed.
+    """
+    import sys
+
+    parent_mod = types.ModuleType("docling")
+    dc_mod = types.ModuleType("docling.document_converter")
 
     class _Doc:
         def export_to_markdown(self) -> str:
@@ -350,8 +363,11 @@ def _fake_dc_module(md_output: str = "# Hello\n\nworld", raise_exc: Exception | 
                 raise raise_exc
             return _Result()
 
-    mod.DocumentConverter = _Converter  # type: ignore[attr-defined]
-    return mod
+    dc_mod.DocumentConverter = _Converter  # type: ignore[attr-defined]
+    parent_mod.document_converter = dc_mod  # type: ignore[attr-defined]
+
+    monkeypatch.setitem(sys.modules, "docling", parent_mod)
+    monkeypatch.setitem(sys.modules, "docling.document_converter", dc_mod)
 
 
 def test_parse_pdf_docling_not_installed_exits(tmp_path, monkeypatch, capsys):
@@ -373,13 +389,9 @@ def test_parse_pdf_docling_not_installed_exits(tmp_path, monkeypatch, capsys):
 
 def test_parse_pdf_docling_conversion_error(tmp_path, monkeypatch, capsys):
     """Conversion exception returns '' and prints a docling-error message."""
-    import sys
-
     import src.ingest.parse_docling as pd_module
 
-    monkeypatch.setitem(
-        sys.modules, "docling.document_converter", _fake_dc_module(raise_exc=RuntimeError("bad"))
-    )
+    _patch_fake_docling(monkeypatch, raise_exc=RuntimeError("bad"))
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
 
@@ -390,11 +402,9 @@ def test_parse_pdf_docling_conversion_error(tmp_path, monkeypatch, capsys):
 
 def test_parse_pdf_docling_empty_output(tmp_path, monkeypatch, capsys):
     """Empty markdown output returns '' and prints a docling-warning message."""
-    import sys
-
     import src.ingest.parse_docling as pd_module
 
-    monkeypatch.setitem(sys.modules, "docling.document_converter", _fake_dc_module(md_output="   "))
+    _patch_fake_docling(monkeypatch, md_output="   ")
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
 

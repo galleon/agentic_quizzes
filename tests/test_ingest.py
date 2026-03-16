@@ -243,11 +243,12 @@ def test_chunk_structured_table_not_split():
     table = "\n".join(f"| col{i} | val{i} |" for i in range(20))
     body = f"## Commands\n\n{table}"
     chunks = chunk_structured_markdown(body, chunk_size=10, overlap=2)
-    # The table block (20+ rows) exceeds chunk_size=10 and must still be emitted whole
-    table_chunks = [t for t, _ in chunks if t.startswith("|")]
-    assert len(table_chunks) == 1
-    assert "col0" in table_chunks[0]
-    assert "col19" in table_chunks[0]
+    # The table block (20+ rows) exceeds chunk_size=10 and must still be emitted whole.
+    # The preceding heading is merged with the table block (no isolated heading).
+    assert len(chunks) == 1
+    chunk_text = chunks[0][0]
+    assert "col0" in chunk_text
+    assert "col19" in chunk_text
 
 
 def test_chunk_structured_oversized_block_emitted():
@@ -299,49 +300,29 @@ def test_clean_still_collapses_spaces_outside_fence():
 
 
 # ---------------------------------------------------------------------------
-# parse_file fallback when docling not installed
+# parse_file
 # ---------------------------------------------------------------------------
 
 
-def test_parse_file_falls_back_without_docling(tmp_path, monkeypatch):
-    """When docling is not installed, parse_file falls back to the PyMuPDF parser.
-
-    Uses use_docling=True on a .pdf path so the docling branch is entered.
-    _PARSERS['.pdf'] is stubbed to avoid needing a real PDF file.
-    """
+def test_parse_file_pdf_calls_docling(tmp_path, monkeypatch):
+    """parse_file routes .pdf to parse_pdf_docling."""
     import src.ingest.parse as parse_module
 
-    # Stub the PyMuPDF fallback so we don't need a real PDF
-    monkeypatch.setitem(parse_module._PARSERS, ".pdf", lambda _p: "stub pdf text")
-
-    # Stub parse_pdf_docling to return "" (simulating any failure: ImportError,
-    # conversion error, or empty output) so the fallback branch is exercised.
-    import src.ingest.parse_docling as pd_module
-
-    monkeypatch.setattr(pd_module, "parse_pdf_docling", lambda _p: "")
-
-    fake_pdf = tmp_path / "doc.pdf"
-    fake_pdf.write_bytes(b"")  # content irrelevant; stub bypasses actual parsing
-
-    result = parse_module.parse_file(fake_pdf, use_docling=True)
-    assert result == "stub pdf text", "Should have fallen back to the _PARSERS stub"
-
-
-def test_parse_pdf_docling_import_error(tmp_path, monkeypatch):
-    """parse_pdf_docling returns '' without raising when docling is not installed."""
-    import sys
-
-    import src.ingest.parse_docling as pd_module
-
-    # Setting a module entry to None makes `import <name>` raise ImportError.
-    monkeypatch.setitem(sys.modules, "docling", None)
-    monkeypatch.setitem(sys.modules, "docling.document_converter", None)
-
+    monkeypatch.setitem(parse_module._PARSERS, ".pdf", lambda _p: "docling output")
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
+    assert parse_module.parse_file(fake_pdf) == "docling output"
 
-    result = pd_module.parse_pdf_docling(fake_pdf)
-    assert result == "", "ImportError inside parse_pdf_docling should return empty string"
+
+def test_parse_file_unsupported_extension(tmp_path, capsys):
+    """parse_file returns '' and warns for unknown extensions."""
+    import src.ingest.parse as parse_module
+
+    f = tmp_path / "doc.docx"
+    f.write_bytes(b"")
+    result = parse_module.parse_file(f)
+    assert result == ""
+    assert "unsupported extension" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

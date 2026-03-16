@@ -6,19 +6,8 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-import pymupdf  # PyMuPDF
-
 from src.common.config import get_settings, project_root
-
-
-def parse_pdf(pdf_path: Path) -> str:
-    with pymupdf.open(str(pdf_path)) as doc:
-        pages = []
-        for i, page in enumerate(doc):
-            text = page.get_text()
-            if text.strip():
-                pages.append(f"<!-- page {i + 1} -->\n{text}")
-    return "\n\n".join(pages)
+from src.ingest.parse_docling import parse_pdf_docling
 
 
 def parse_text(path: Path) -> str:
@@ -27,36 +16,22 @@ def parse_text(path: Path) -> str:
 
 # Maps file extensions to their parser functions.
 # Keep in sync with IngestConfig.supported_extensions in src/common/config.py.
-_PARSERS = {
-    ".pdf": parse_pdf,
+_PARSERS: dict[str, object] = {
+    ".pdf": parse_pdf_docling,
     ".txt": parse_text,
     ".md": parse_text,
     ".html": parse_text,
 }
 
 
-def parse_file(path: Path, use_docling: bool = False) -> str:
-    """Parse a single file to text.
-
-    When *use_docling* is True and the file is a PDF, ``parse_pdf_docling`` is
-    called first.  That function handles ImportError and conversion errors
-    internally, returning an empty string on any failure.  An empty result
-    causes this function to fall back to the ``_PARSERS`` entry (PyMuPDF).
-    """
+def parse_file(path: Path) -> str:
+    """Parse a single file to text."""
     suffix = path.suffix.lower()
-    if use_docling and suffix == ".pdf":
-        from src.ingest.parse_docling import parse_pdf_docling
-
-        result = parse_pdf_docling(path)
-        if result:
-            return result
-        # Fall through to PyMuPDF below
-
     parser = _PARSERS.get(suffix)
     if parser is None:
         print(f"  [skip] unsupported extension: {path.suffix}", file=sys.stderr)
         return ""
-    return parser(path)
+    return parser(path)  # type: ignore[operator]
 
 
 def main() -> None:
@@ -65,10 +40,6 @@ def main() -> None:
     raw_dir = root / cfg.ingest.raw_dir
     out_dir = root / cfg.ingest.extracted_dir
     out_dir.mkdir(parents=True, exist_ok=True)
-
-    use_docling = cfg.docling.enabled
-    if use_docling:
-        print("Docling extraction enabled (structured Markdown output).")
 
     # Intersect config extensions with _PARSERS: config controls which formats
     # are active (so users can narrow the set via settings.yaml), while _PARSERS
@@ -88,7 +59,7 @@ def main() -> None:
 
     for src_file in files:
         print(f"Parsing: {src_file.relative_to(raw_dir)}")
-        text = parse_file(src_file, use_docling=use_docling)
+        text = parse_file(src_file)
         if not text:
             skipped += 1
             report_lines.append(

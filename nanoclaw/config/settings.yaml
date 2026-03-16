@@ -31,10 +31,6 @@ ingest:
   chunk_size: 512         # words (text.split()); ~2000 chars / ~500 tokens per chunk
   chunk_overlap: 64       # words
 
-docling:
-  enabled: false        # Set true to use docling for structured PDF extraction
-  timeout_seconds: 60   # Reserved for future remote-API mode
-
 quiz:
   outputs_dir: "outputs"
   quizzes_dir: "outputs/quizzes"

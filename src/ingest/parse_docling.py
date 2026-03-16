@@ -14,18 +14,12 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     """Extract PDF to structured Markdown using docling.
 
     Returns Markdown prefixed with DOCLING_MARKER on success.
-    Returns an empty string on ImportError or conversion failure so the caller
-    can fall back to the PyMuPDF path.
+    Returns an empty string on conversion failure so the caller can skip
+    the file rather than crashing the ingest pipeline.
+
+    Requires docling: ``uv sync --group docling``
     """
-    try:
-        from docling.document_converter import DocumentConverter
-    except ImportError:
-        print(
-            "docling not installed — falling back to PyMuPDF.\n"
-            "To enable rich extraction: uv sync --group docling",
-            file=sys.stderr,
-        )
-        return ""
+    from docling.document_converter import DocumentConverter
 
     try:
         converter = DocumentConverter()
@@ -33,14 +27,14 @@ def parse_pdf_docling(pdf_path: Path) -> str:
         md = result.document.export_to_markdown()
     except Exception as exc:
         print(
-            f"  [docling error] {pdf_path.name}: {exc} — falling back to PyMuPDF",
+            f"  [docling error] {pdf_path.name}: {exc}",
             file=sys.stderr,
         )
         return ""
 
     if not md.strip():
         print(
-            f"  [docling warning] {pdf_path.name}: empty markdown output — falling back to PyMuPDF",
+            f"  [docling warning] {pdf_path.name}: empty markdown output",
             file=sys.stderr,
         )
         return ""

@@ -73,12 +73,16 @@ def _split_into_blocks(text: str) -> list[str]:
         # (e.g. a ``` line inside a ~~~ block) does not prematurely close it.
         m = _FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
         if m:
-            # Opening a new fence: flush any pending paragraph first
+            # Opening a new fence: flush any pending paragraph first.
+            # If current contains only headings, keep them so the heading
+            # attaches to the fence block rather than becoming isolated.
             if current:
-                block = "\n".join(current).strip()
-                if block:
-                    blocks.append(block)
-                current = []
+                heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+                if not heading_only:
+                    block = "\n".join(current).strip()
+                    if block:
+                        blocks.append(block)
+                    current = []
             fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
             current.append(line)
             continue
@@ -95,12 +99,16 @@ def _split_into_blocks(text: str) -> list[str]:
         # ---- Table detection (contiguous pipe-prefixed lines) ----
         is_table_row = stripped.startswith("|")
         if is_table_row and not in_table:
-            # Flush pending paragraph before the table
+            # Flush pending paragraph before the table.
+            # If current contains only headings, keep them so the heading
+            # attaches to the table block rather than becoming isolated.
             if current:
-                block = "\n".join(current).strip()
-                if block:
-                    blocks.append(block)
-                current = []
+                heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+                if not heading_only:
+                    block = "\n".join(current).strip()
+                    if block:
+                        blocks.append(block)
+                    current = []
             in_table = True
         elif not is_table_row and in_table:
             # End of table — flush

@@ -4,7 +4,6 @@ version = "0.1.0"
 description = "NanoClaw quiz generation from source documents using local LLMs"
 requires-python = ">=3.11"
 dependencies = [
-    "pymupdf>=1.24",
     "qdrant-client>=1.10",  # 1.10+ required for query_points() API
     "ollama>=0.4.4",  # 0.4.4+ required for the `think` kwarg (Qwen3 chain-of-thought control)
     "pydantic>=2.6",
@@ -25,9 +24,9 @@ dev = [
     "ruff>=0.15",
     "pre-commit>=3.7",
 ]
-# Optional: rich structured PDF extraction (tables, code blocks, headings).
+# Required for PDF parsing (tables, code blocks, headings as structured Markdown).
 # Install with: uv sync --group docling
-# Warning: pulls in torch + layout model weights (~several GB on first run).
+# Note: pulls in torch + layout model weights (~several GB on first run).
 docling = [
     "docling>=2.0",
 ]

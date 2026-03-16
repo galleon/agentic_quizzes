@@ -171,12 +171,16 @@ def test_split_fence_info_string_not_treated_as_closer():
 
 
 def test_split_consecutive_headings_no_isolated_block():
-    # When H1 is immediately followed by H2, H1 must not become a standalone block.
+    # Consecutive headings must accumulate and attach to the following content,
+    # preserving hierarchical context. Neither heading should be emitted alone.
     text = "## Section A\n\n## Section B\n\nContent here."
     blocks = split_into_blocks(text)
-    isolated = [b for b in blocks if b.strip() == "## Section A"]
-    assert not isolated, "Superseded heading must not be emitted as an isolated block"
-    combined = [b for b in blocks if "## Section B" in b and "Content here" in b]
+    isolated = [b for b in blocks if b.strip() in ("## Section A", "## Section B")]
+    assert not isolated, "Neither heading should be emitted as an isolated block"
+    # Both headings and the content must end up in a single block.
+    combined = [
+        b for b in blocks if "## Section A" in b and "## Section B" in b and "Content here" in b
+    ]  # noqa: E501
     assert len(combined) == 1
 
 

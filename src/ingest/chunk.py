@@ -15,6 +15,11 @@ from src.ingest.parse_docling import DOCLING_MARKER
 _ATX_HEADING_RE = re.compile(r"^#{1,6}\s+(.*)")
 
 
+def _heading_only(lines: list[str]) -> bool:
+    """Return True when every non-empty line in *lines* is an ATX heading."""
+    return all(_ATX_HEADING_RE.match(ln.strip()) for ln in lines if ln.strip())
+
+
 def _extract_title(text: str, fallback: str) -> str:
     """Try to grab the first non-empty line as the document title.
 
@@ -88,7 +93,7 @@ def split_into_blocks(text: str) -> list[str]:
             # If current contains only headings, keep them so the heading
             # attaches to the fence block rather than becoming isolated.
             if current:
-                heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+                heading_only = _heading_only(current)
                 if not heading_only:
                     block = "\n".join(current).strip()
                     if block:
@@ -114,7 +119,7 @@ def split_into_blocks(text: str) -> list[str]:
             # If current contains only headings, keep them so the heading
             # attaches to the table block rather than becoming isolated.
             if current:
-                heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+                heading_only = _heading_only(current)
                 if not heading_only:
                     block = "\n".join(current).strip()
                     if block:
@@ -132,15 +137,17 @@ def split_into_blocks(text: str) -> list[str]:
             continue
 
         # ---- Heading: flush pending paragraph first ----
-        # If current contains only headings (no body yet), discard rather than
-        # emitting a standalone heading block — the new heading supersedes it.
-        if stripped.startswith("#") and current:
-            heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+        # If current contains only headings (no body yet), keep them so they
+        # accumulate with the new heading and eventually attach to the next
+        # content block, preserving hierarchical context (e.g. # Title + ##
+        # Section both appear in the same block as their following paragraph).
+        if _ATX_HEADING_RE.match(stripped) and current:
+            heading_only = _heading_only(current)
             if not heading_only:
                 block = "\n".join(current).strip()
                 if block:
                     blocks.append(block)
-            current = []
+                current = []
 
         # ---- Blank line: flush pending paragraph ----
         # Exception: if current contains only heading lines, keep them so the
@@ -148,7 +155,7 @@ def split_into_blocks(text: str) -> list[str]:
         # isolated heading-only block (e.g. "## Heading\n\nParagraph" → one block).
         if not stripped:
             if current:
-                heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+                heading_only = _heading_only(current)
                 if not heading_only:
                     block = "\n".join(current).strip()
                     if block:
@@ -180,9 +187,10 @@ def last_heading(blocks: list[str], from_idx: int) -> str:
     block IS a heading correctly reports that heading as its section.
     """
     for i in range(from_idx, -1, -1):
-        first_line = blocks[i].splitlines()[0] if blocks[i] else ""
-        if first_line.lstrip().startswith("#"):
-            return first_line.lstrip("#").strip()[:80]
+        first_line = blocks[i].splitlines()[0].strip() if blocks[i] else ""
+        m = _ATX_HEADING_RE.match(first_line)
+        if m:
+            return m.group(1).strip()[:80]
     return ""
 
 

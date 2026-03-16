@@ -7,7 +7,6 @@ import sys
 
 from src.common.config import get_settings, project_root
 
-_MULTI_NEWLINE = re.compile(r"\n{3,}")
 _MULTI_SPACE = re.compile(r"[ \t]{2,}")
 _PAGE_MARKER = re.compile(r"<!-- page \d+ -->")
 _FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
@@ -25,28 +24,40 @@ def _is_closing_fence(stripped: str, opener: str) -> bool:
 def clean_text(raw: str) -> str:
     # Drop page markers (keep content)
     text = _PAGE_MARKER.sub("", raw)
-    text = _MULTI_NEWLINE.sub("\n\n", text)
 
-    # Collapse consecutive spaces/tabs per line, but skip lines inside code
-    # fences so that indentation (e.g. Python indent) is not destroyed.
-    # Track the opening fence delimiter (``` or ~~~) to avoid a mismatched
-    # delimiter (e.g. a ``` line inside a ~~~ block) from prematurely closing
-    # the fence.
+    # Process line by line so that fence-interior content is never modified:
+    # - inside a fence: preserve all whitespace (indentation, blank lines)
+    # - outside a fence: collapse runs of spaces/tabs; limit to one blank line
+    #   between paragraphs (i.e. suppress any blank line beyond the first in a
+    #   consecutive run, equivalent to collapsing \n{3,} → \n\n but only
+    #   outside fences).
     cleaned: list[str] = []
     fence_opener: str | None = None
+    blank_run = 0
+
     for line in text.splitlines():
         stripped = line.strip()
         m = _FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
         if m:
             fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
+            blank_run = 0
             cleaned.append(line.rstrip())
         elif fence_opener is not None and _is_closing_fence(stripped, fence_opener):
             fence_opener = None
+            blank_run = 0
             cleaned.append(line.rstrip())
         elif fence_opener is not None:
+            # Inside fence: preserve line verbatim (indentation + blank lines)
             cleaned.append(line.rstrip())
         else:
-            cleaned.append(_MULTI_SPACE.sub(" ", line).rstrip())
+            if not stripped:
+                blank_run += 1
+                if blank_run == 1:
+                    cleaned.append("")
+                # else: suppress extra blank lines
+            else:
+                blank_run = 0
+                cleaned.append(_MULTI_SPACE.sub(" ", line).rstrip())
 
     return "\n".join(cleaned).strip()
 

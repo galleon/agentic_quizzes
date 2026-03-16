@@ -310,6 +310,21 @@ def test_clean_still_collapses_spaces_outside_fence():
     assert "  " not in lines[-1]
 
 
+def test_clean_preserves_blank_lines_inside_fence():
+    # Multiple blank lines inside a code fence must not be collapsed.
+    raw = "```\nline1\n\n\n\nline2\n```"
+    result = clean_text(raw)
+    assert "\n\n\n" in result, "blank lines inside a fence should be preserved verbatim"
+
+
+def test_clean_collapses_blank_lines_outside_fence_only():
+    # Three or more blank lines outside a fence collapse to one.
+    raw = "para1\n\n\n\npara2"
+    result = clean_text(raw)
+    assert "\n\n\n" not in result
+    assert "para1" in result and "para2" in result
+
+
 # ---------------------------------------------------------------------------
 # parse_file
 # ---------------------------------------------------------------------------

@@ -117,6 +117,23 @@ def test_split_heading_starts_new_block():
     assert any("Some intro text." in b for b in blocks)
 
 
+def test_split_heading_attaches_to_following_paragraph():
+    # A heading separated from its body by a blank line must not become an
+    # isolated heading-only block — the heading and body should be one block.
+    text = "## GPU Monitoring\n\nThis section covers GPU health."
+    blocks = _split_into_blocks(text)
+    assert len(blocks) == 1
+    assert "## GPU Monitoring" in blocks[0]
+    assert "This section covers GPU health." in blocks[0]
+
+
+def test_split_heading_only_chunk_section_metadata():
+    # _last_heading must still work when a heading is part of a merged block
+    text = "## Section\n\nword " * 5
+    chunks = chunk_structured_markdown(text.strip(), chunk_size=20, overlap=2)
+    assert all(section == "Section" for _, section in chunks)
+
+
 def test_split_table_is_single_block():
     rows = "| Col A | Col B |\n|-------|-------|\n| val 1 | val 2 |\n| val 3 | val 4 |"
     text = f"Intro.\n\n{rows}\n\nOutro."

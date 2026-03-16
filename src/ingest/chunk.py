@@ -54,7 +54,9 @@ def _split_into_blocks(text: str) -> list[str]:
     Each returned block is one of:
     - a fenced code block (``` ... ```)
     - a contiguous run of table rows (| ... |)
-    - a heading line followed by its body paragraph
+    - a heading together with the paragraph that follows it (blank lines
+      between a heading and its body are absorbed so the heading is never
+      emitted as an isolated block)
     - a regular paragraph
     """
     blocks: list[str] = []
@@ -117,12 +119,17 @@ def _split_into_blocks(text: str) -> list[str]:
             current = []
 
         # ---- Blank line: flush pending paragraph ----
+        # Exception: if current contains only heading lines, keep them so the
+        # heading attaches to the following content rather than becoming an
+        # isolated heading-only block (e.g. "## Heading\n\nParagraph" → one block).
         if not stripped:
             if current:
-                block = "\n".join(current).strip()
-                if block:
-                    blocks.append(block)
-                current = []
+                heading_only = all(ln.strip().startswith("#") for ln in current if ln.strip())
+                if not heading_only:
+                    block = "\n".join(current).strip()
+                    if block:
+                        blocks.append(block)
+                    current = []
             continue
 
         current.append(line)

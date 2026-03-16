@@ -1,7 +1,5 @@
 """Ingest unit tests — no LLM, no Qdrant, no network."""
 
-import types
-
 import pytest
 
 from src.ingest.chunk import (
@@ -333,70 +331,19 @@ def test_parse_file_unsupported_extension(tmp_path, capsys):
 # ---------------------------------------------------------------------------
 
 
-def _patch_fake_docling(
-    monkeypatch: pytest.MonkeyPatch,
-    md_output: str = "# Hello\n\nworld",
-    raise_exc: Exception | None = None,
-) -> None:
-    """Inject a fake docling package + DocumentConverter into sys.modules.
-
-    ``from docling.document_converter import DocumentConverter`` first resolves
-    the parent package ``docling``, so both entries must be present in
-    sys.modules for the import to succeed in environments where docling is not
-    installed.
-    """
-    import sys
-
-    parent_mod = types.ModuleType("docling")
-    dc_mod = types.ModuleType("docling.document_converter")
-
-    class _Doc:
-        def export_to_markdown(self) -> str:
-            return md_output
-
-    class _Result:
-        document = _Doc()
-
-    class _Converter:
-        def convert(self, _path: object) -> _Result:
-            if raise_exc is not None:
-                raise raise_exc
-            return _Result()
-
-    dc_mod.DocumentConverter = _Converter  # type: ignore[attr-defined]
-    parent_mod.document_converter = dc_mod  # type: ignore[attr-defined]
-
-    monkeypatch.setitem(sys.modules, "docling", parent_mod)
-    monkeypatch.setitem(sys.modules, "docling.document_converter", dc_mod)
-
-
-def test_parse_pdf_docling_not_installed_exits(tmp_path, monkeypatch, capsys):
-    """Missing docling exits with code 1 and prints an install hint."""
-    import sys
-
-    import src.ingest.parse_docling as pd_module
-
-    monkeypatch.setitem(sys.modules, "docling.document_converter", None)
-    fake_pdf = tmp_path / "doc.pdf"
-    fake_pdf.write_bytes(b"")
-
-    with pytest.raises(SystemExit) as exc_info:
-        pd_module.parse_pdf_docling(fake_pdf)
-
-    assert exc_info.value.code == 1
-    assert "uv sync" in capsys.readouterr().err
-
-
 def test_parse_pdf_docling_conversion_error(tmp_path, monkeypatch, capsys):
     """Conversion exception returns '' and prints a docling-error message."""
     import src.ingest.parse_docling as pd_module
 
-    _patch_fake_docling(monkeypatch, raise_exc=RuntimeError("bad"))
+    class _FailConverter:
+        def convert(self, _path: object) -> None:
+            raise RuntimeError("bad pdf")
+
+    monkeypatch.setattr(pd_module, "DocumentConverter", _FailConverter)
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
 
-    result = pd_module.parse_pdf_docling(fake_pdf)
-    assert result == ""
+    assert pd_module.parse_pdf_docling(fake_pdf) == ""
     assert "docling error" in capsys.readouterr().err
 
 
@@ -404,12 +351,19 @@ def test_parse_pdf_docling_empty_output(tmp_path, monkeypatch, capsys):
     """Empty markdown output returns '' and prints a docling-warning message."""
     import src.ingest.parse_docling as pd_module
 
-    _patch_fake_docling(monkeypatch, md_output="   ")
+    class _Doc:
+        def export_to_markdown(self) -> str:
+            return "   "
+
+    class _EmptyConverter:
+        def convert(self, _path: object) -> object:
+            return type("R", (), {"document": _Doc()})()
+
+    monkeypatch.setattr(pd_module, "DocumentConverter", _EmptyConverter)
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
 
-    result = pd_module.parse_pdf_docling(fake_pdf)
-    assert result == ""
+    assert pd_module.parse_pdf_docling(fake_pdf) == ""
     assert "docling warning" in capsys.readouterr().err
 
 

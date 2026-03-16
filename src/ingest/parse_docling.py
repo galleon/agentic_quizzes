@@ -5,6 +5,8 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
+from docling.document_converter import DocumentConverter
+
 # Marker prepended to all docling-extracted files so downstream stages can
 # detect and apply structure-aware processing (e.g. chunk_structured_markdown).
 DOCLING_MARKER = "<!-- docling-structured-md -->"
@@ -16,19 +18,7 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     Returns Markdown prefixed with DOCLING_MARKER on success.
     Returns an empty string on conversion failure so the caller can skip
     the file without crashing the ingest pipeline.
-
-    Exits with code 1 if docling is missing (broken install).
     """
-    try:
-        from docling.document_converter import DocumentConverter
-    except ImportError:
-        print(
-            "ERROR: docling is not installed but is required for PDF parsing.\n"
-            "Re-install the project dependencies with: uv sync",
-            file=sys.stderr,
-        )
-        sys.exit(1)
-
     try:
         converter = DocumentConverter()
         result = converter.convert(pdf_path)

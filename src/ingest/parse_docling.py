@@ -7,8 +7,8 @@ from pathlib import Path
 
 # Marker prepended to all docling-extracted files so downstream stages can
 # detect and apply structure-aware processing (e.g. chunk_structured_markdown).
-# Defined here (not in parse_docling) so importing it never triggers the
-# heavy docling package import.
+# Defined at module scope (not inside parse_pdf_docling) so importing this
+# constant never triggers the heavy docling package import.
 DOCLING_MARKER = "<!-- docling-structured-md -->"
 
 

@@ -17,16 +17,14 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     Returns an empty string on conversion failure so the caller can skip
     the file without crashing the ingest pipeline.
 
-    Exits with code 1 if docling is not installed.  Install with::
-
-        uv sync --group docling
+    Exits with code 1 if docling is missing (broken install).
     """
     try:
         from docling.document_converter import DocumentConverter
     except ImportError:
         print(
             "ERROR: docling is not installed but is required for PDF parsing.\n"
-            "Install with: uv sync --group docling",
+            "Re-install the project dependencies with: uv sync",
             file=sys.stderr,
         )
         sys.exit(1)

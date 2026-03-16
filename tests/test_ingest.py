@@ -384,7 +384,7 @@ def test_parse_pdf_docling_not_installed_exits(tmp_path, monkeypatch, capsys):
         pd_module.parse_pdf_docling(fake_pdf)
 
     assert exc_info.value.code == 1
-    assert "uv sync --group docling" in capsys.readouterr().err
+    assert "uv sync" in capsys.readouterr().err
 
 
 def test_parse_pdf_docling_conversion_error(tmp_path, monkeypatch, capsys):

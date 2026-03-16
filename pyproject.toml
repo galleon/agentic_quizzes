@@ -8,6 +8,7 @@ dependencies = [
     "ollama>=0.4.4",  # 0.4.4+ required for the `think` kwarg (Qwen3 chain-of-thought control)
     "pydantic>=2.6",
     "pyyaml>=6.0",
+    "docling>=2.0",  # required for PDF parsing (structured Markdown with tables/code/headings)
 ]
 
 
@@ -23,14 +24,6 @@ dev = [
     "pytest>=8.0",
     "ruff>=0.15",
     "pre-commit>=3.7",
-]
-# Required for PDF parsing (tables, code blocks, headings as structured Markdown).
-# Kept as an optional group because docling pulls in torch + layout model
-# weights (~several GB on first run) which is undesirable in CI.
-# Any environment that ingests PDFs must install this group:
-#   uv sync --group docling
-docling = [
-    "docling>=2.0",
 ]
 
 [tool.ruff]

@@ -1,5 +1,7 @@
 """Ingest unit tests — no LLM, no Qdrant, no network."""
 
+import types
+
 import pytest
 
 from src.ingest.chunk import (
@@ -324,6 +326,81 @@ def test_parse_file_unsupported_extension(tmp_path, capsys):
     result = parse_module.parse_file(f)
     assert result == ""
     assert "unsupported extension" in capsys.readouterr().err
+
+
+# ---------------------------------------------------------------------------
+# parse_pdf_docling failure branches
+# ---------------------------------------------------------------------------
+
+
+def _fake_dc_module(md_output: str = "# Hello\n\nworld", raise_exc: Exception | None = None):
+    """Build a fake docling.document_converter module for testing."""
+    mod = types.ModuleType("docling.document_converter")
+
+    class _Doc:
+        def export_to_markdown(self) -> str:
+            return md_output
+
+    class _Result:
+        document = _Doc()
+
+    class _Converter:
+        def convert(self, _path: object) -> _Result:
+            if raise_exc is not None:
+                raise raise_exc
+            return _Result()
+
+    mod.DocumentConverter = _Converter  # type: ignore[attr-defined]
+    return mod
+
+
+def test_parse_pdf_docling_not_installed_exits(tmp_path, monkeypatch, capsys):
+    """Missing docling exits with code 1 and prints an install hint."""
+    import sys
+
+    import src.ingest.parse_docling as pd_module
+
+    monkeypatch.setitem(sys.modules, "docling.document_converter", None)
+    fake_pdf = tmp_path / "doc.pdf"
+    fake_pdf.write_bytes(b"")
+
+    with pytest.raises(SystemExit) as exc_info:
+        pd_module.parse_pdf_docling(fake_pdf)
+
+    assert exc_info.value.code == 1
+    assert "uv sync --group docling" in capsys.readouterr().err
+
+
+def test_parse_pdf_docling_conversion_error(tmp_path, monkeypatch, capsys):
+    """Conversion exception returns '' and prints a docling-error message."""
+    import sys
+
+    import src.ingest.parse_docling as pd_module
+
+    monkeypatch.setitem(
+        sys.modules, "docling.document_converter", _fake_dc_module(raise_exc=RuntimeError("bad"))
+    )
+    fake_pdf = tmp_path / "doc.pdf"
+    fake_pdf.write_bytes(b"")
+
+    result = pd_module.parse_pdf_docling(fake_pdf)
+    assert result == ""
+    assert "docling error" in capsys.readouterr().err
+
+
+def test_parse_pdf_docling_empty_output(tmp_path, monkeypatch, capsys):
+    """Empty markdown output returns '' and prints a docling-warning message."""
+    import sys
+
+    import src.ingest.parse_docling as pd_module
+
+    monkeypatch.setitem(sys.modules, "docling.document_converter", _fake_dc_module(md_output="   "))
+    fake_pdf = tmp_path / "doc.pdf"
+    fake_pdf.write_bytes(b"")
+
+    result = pd_module.parse_pdf_docling(fake_pdf)
+    assert result == ""
+    assert "docling warning" in capsys.readouterr().err
 
 
 # ---------------------------------------------------------------------------

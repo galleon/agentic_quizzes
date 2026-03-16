@@ -14,19 +14,22 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     """Extract PDF to structured Markdown using docling.
 
     Returns Markdown prefixed with DOCLING_MARKER on success.
-    Returns an empty string when docling is not installed or on any
-    conversion failure, so the caller can skip the file without crashing
-    the ingest pipeline.  Install docling with: ``uv sync --group docling``
+    Returns an empty string on conversion failure so the caller can skip
+    the file without crashing the ingest pipeline.
+
+    Exits with code 1 if docling is not installed.  Install with::
+
+        uv sync --group docling
     """
     try:
         from docling.document_converter import DocumentConverter
     except ImportError:
         print(
-            "  [docling] package not installed — skipping PDF."
-            " Install with: uv sync --group docling",
+            "ERROR: docling is not installed but is required for PDF parsing.\n"
+            "Install with: uv sync --group docling",
             file=sys.stderr,
         )
-        return ""
+        sys.exit(1)
 
     try:
         converter = DocumentConverter()

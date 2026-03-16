@@ -334,7 +334,7 @@ def main() -> None:
                 )
         else:
             # Word-based chunking with page-marker provenance (.txt/.md/.html path)
-            raw_path = extracted_dir / f.relative_to(in_dir)
+            raw_path = extracted_dir / rel
             raw_text = raw_path.read_text(encoding="utf-8") if raw_path.exists() else text
             raw_chunks = chunk_text(body, cfg.ingest.chunk_size, cfg.ingest.chunk_overlap)
             # Strip page markers before normalising so cleaned chunks match across page boundaries
@@ -358,7 +358,6 @@ def main() -> None:
 
         # Mirror subdirectory structure so same-stem files in different
         # subdirectories don't overwrite each other's chunk file.
-        rel = f.relative_to(in_dir)
         out_path = out_dir / rel.parent / (f.stem + ".chunks.jsonl")
         out_path.parent.mkdir(parents=True, exist_ok=True)
         with out_path.open("w", encoding="utf-8") as fh:

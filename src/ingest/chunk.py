@@ -228,7 +228,9 @@ def chunk_structured_markdown(
             section = _last_heading(blocks, current_start_idx)
             result.append(("\n\n".join(current_blocks), section))
 
-            # Overlap: keep trailing blocks that fit within the overlap budget
+            # Overlap: keep trailing blocks that fit within the overlap budget,
+            # then trim further if the carry-over would prevent the next block
+            # from fitting within chunk_size.
             overlap_blocks: list[str] = []
             overlap_count = 0
             for b in reversed(current_blocks):
@@ -238,6 +240,8 @@ def chunk_structured_markdown(
                     overlap_count += bwc
                 else:
                     break
+            while overlap_blocks and overlap_count + block_words > chunk_size:
+                overlap_count -= len(overlap_blocks.pop(0).split())
             current_blocks = overlap_blocks
             current_start_idx = i - len(overlap_blocks)
             current_word_count = overlap_count

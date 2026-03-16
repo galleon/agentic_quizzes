@@ -267,6 +267,16 @@ def test_chunk_structured_code_fence_not_split():
     assert len(fence_chunks) == 1
 
 
+def test_chunk_structured_overlap_never_exceeds_chunk_size():
+    # chunk_size=50, overlap=40: without the trim guard, overlap_count=40
+    # plus a 20-word next block gives 60 words — exceeding chunk_size.
+    words = " ".join(f"w{i}" for i in range(20))  # 20-word block
+    body = f"{words}\n\n{words}\n\n{words}\n\n{words}"
+    chunks = chunk_structured_markdown(body, chunk_size=50, overlap=40)
+    for text, _ in chunks:
+        assert len(text.split()) <= 50, f"chunk exceeded chunk_size: {len(text.split())} words"
+
+
 def test_chunk_structured_validation_errors():
     with pytest.raises(ValueError, match="chunk_size"):
         chunk_structured_markdown("text", chunk_size=0, overlap=0)

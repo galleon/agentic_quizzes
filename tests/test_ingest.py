@@ -247,9 +247,9 @@ def test_chunk_structured_table_not_split():
     # The table block (20+ rows) exceeds chunk_size=10 and must still be emitted whole.
     # The preceding heading is merged with the table block (no isolated heading).
     assert len(chunks) == 1
-    chunk_text = chunks[0][0]
-    assert "col0" in chunk_text
-    assert "col19" in chunk_text
+    chunk_body = chunks[0][0]
+    assert "col0" in chunk_body
+    assert "col19" in chunk_body
 
 
 def test_chunk_structured_oversized_block_emitted():

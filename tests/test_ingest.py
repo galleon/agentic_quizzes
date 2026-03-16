@@ -339,7 +339,7 @@ def test_parse_pdf_docling_conversion_error(tmp_path, monkeypatch, capsys):
         def convert(self, _path: object) -> None:
             raise RuntimeError("bad pdf")
 
-    monkeypatch.setattr(pd_module, "DocumentConverter", _FailConverter)
+    monkeypatch.setattr("docling.document_converter.DocumentConverter", _FailConverter)
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
 
@@ -359,7 +359,7 @@ def test_parse_pdf_docling_empty_output(tmp_path, monkeypatch, capsys):
         def convert(self, _path: object) -> object:
             return type("R", (), {"document": _Doc()})()
 
-    monkeypatch.setattr(pd_module, "DocumentConverter", _EmptyConverter)
+    monkeypatch.setattr("docling.document_converter.DocumentConverter", _EmptyConverter)
     fake_pdf = tmp_path / "doc.pdf"
     fake_pdf.write_bytes(b"")
 

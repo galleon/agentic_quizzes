@@ -5,10 +5,10 @@ from __future__ import annotations
 import sys
 from pathlib import Path
 
-from docling.document_converter import DocumentConverter
-
 # Marker prepended to all docling-extracted files so downstream stages can
 # detect and apply structure-aware processing (e.g. chunk_structured_markdown).
+# Defined here (not in parse_docling) so importing it never triggers the
+# heavy docling package import.
 DOCLING_MARKER = "<!-- docling-structured-md -->"
 
 
@@ -19,6 +19,11 @@ def parse_pdf_docling(pdf_path: Path) -> str:
     Returns an empty string on conversion failure so the caller can skip
     the file without crashing the ingest pipeline.
     """
+    # Lazy import: docling has a significant startup cost; importing it here
+    # means only PDF-parsing code paths pay that cost, not every module that
+    # imports DOCLING_MARKER.
+    from docling.document_converter import DocumentConverter
+
     try:
         converter = DocumentConverter()
         result = converter.convert(pdf_path)

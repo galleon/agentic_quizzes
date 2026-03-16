@@ -223,6 +223,13 @@ def test_last_heading_none():
     assert last_heading(blocks, 1) == ""
 
 
+def test_last_heading_merged_block_returns_innermost():
+    # When consecutive headings are merged into one block, last_heading must
+    # return the most specific (last) heading, not the outermost one.
+    blocks = ["# Title\n## Section\n\nSome content."]
+    assert last_heading(blocks, 0) == "Section"
+
+
 # ---------------------------------------------------------------------------
 # chunk_structured_markdown
 # ---------------------------------------------------------------------------

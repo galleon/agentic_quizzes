@@ -181,16 +181,19 @@ def split_into_blocks(text: str) -> list[str]:
 
 
 def last_heading(blocks: list[str], from_idx: int) -> str:
-    """Return text of the nearest Markdown heading at or before *from_idx* in *blocks*.
+    """Return the most specific Markdown heading at or before *from_idx*.
 
-    Searches backwards from *from_idx* (inclusive) so that a chunk whose first
-    block IS a heading correctly reports that heading as its section.
+    Searches backwards through blocks from *from_idx* (inclusive).  Within
+    each block, lines are scanned bottom-to-top so that when multiple headings
+    have been merged into one block (e.g. ``# Title`` + ``## Section`` +
+    paragraph) the innermost / most specific heading is returned rather than
+    the outermost one.
     """
     for i in range(from_idx, -1, -1):
-        first_line = blocks[i].splitlines()[0].strip() if blocks[i] else ""
-        m = _ATX_HEADING_RE.match(first_line)
-        if m:
-            return m.group(1).strip()[:80]
+        for line in reversed(blocks[i].splitlines()):
+            m = _ATX_HEADING_RE.match(line.strip())
+            if m:
+                return m.group(1).strip()[:80]
     return ""
 
 

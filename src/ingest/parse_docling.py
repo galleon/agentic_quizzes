@@ -33,7 +33,8 @@ def parse_pdf_docling(pdf_path: Path) -> str:
         md = result.document.export_to_markdown()
     except Exception as exc:
         print(
-            f"  [docling error] {pdf_path.name}: {exc} — falling back to PyMuPDF", file=sys.stderr
+            f"  [docling error] {pdf_path.name}: {exc} — falling back to PyMuPDF",
+            file=sys.stderr,
         )
         return ""
 

@@ -169,6 +169,16 @@ def test_split_fence_info_string_not_treated_as_closer():
     assert "more code" in fence_blocks[0]
 
 
+def test_split_consecutive_headings_no_isolated_block():
+    # When H1 is immediately followed by H2, H1 must not become a standalone block.
+    text = "## Section A\n\n## Section B\n\nContent here."
+    blocks = _split_into_blocks(text)
+    isolated = [b for b in blocks if b.strip() == "## Section A"]
+    assert not isolated, "Superseded heading must not be emitted as an isolated block"
+    combined = [b for b in blocks if "## Section B" in b and "Content here" in b]
+    assert len(combined) == 1
+
+
 def test_split_longer_fence_not_closed_by_shorter():
     # A 4-backtick fence must not be closed by a 3-backtick line inside it.
     text = "````\nsome content\n```\nmore content\n````"

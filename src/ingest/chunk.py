@@ -23,10 +23,13 @@ def _heading_only(lines: list[str]) -> bool:
 def _extract_title(text: str, fallback: str) -> str:
     """Try to grab the first non-empty line as the document title.
 
-    ATX Markdown heading markers (``# … ######``) are stripped so that
-    structured docs produced by docling don't produce titles like
-    ``# My Document``.  Non-heading lines that start with ``#``
-    (e.g. shebangs, config comments) are left intact.
+    Lines matching the ATX heading pattern (``^#{1,6}\\s+``) have their
+    leading ``#`` markers stripped, so docling-structured docs don't produce
+    titles like ``# My Document``.  Lines that start with ``#`` but are not
+    ATX headings — shebangs (``#!/usr/bin/env bash``) or token-adjacent
+    markers like ``#define`` — don't match the pattern and are returned as-is.
+    Note that a bare ``# comment`` (hash + space) *does* match the ATX pattern
+    and will have its ``#`` stripped.
     """
     for line in text.splitlines():
         line = line.strip()
@@ -69,11 +72,13 @@ def split_into_blocks(text: str) -> list[str]:
     - a fenced code block (``` ... ```)
     - a contiguous run of table rows (| ... |), optionally preceded by a
       heading that is merged into the block rather than emitted in isolation
-    - a heading merged with the content that follows it (paragraph, table, or
-      fence); blank lines between a heading and its body are absorbed, and a
-      heading-only block pending new content is discarded when a subsequent
-      heading arrives (a heading that trails the entire input may still be
-      emitted alone)
+    - one or more headings merged with the content that follows them
+      (paragraph, table, or fence); blank lines between headings and their
+      body are absorbed; consecutive headings accumulate in the pending buffer
+      so that hierarchical context (e.g. ``# Title`` + ``## Section``) is
+      preserved in the same block as the following content — a heading that
+      trails the entire input with no following content may still be emitted
+      alone
     - a regular paragraph
     """
     blocks: list[str] = []

@@ -12,17 +12,23 @@ from src.common.models import Chunk, ChunkMetadata
 from src.ingest._fence import FENCE_OPEN_RE, is_closing_fence
 from src.ingest.parse_docling import DOCLING_MARKER
 
+_ATX_HEADING_RE = re.compile(r"^#{1,6}\s+(.*)")
+
 
 def _extract_title(text: str, fallback: str) -> str:
     """Try to grab the first non-empty line as the document title.
 
-    Markdown heading markers (``#``) are stripped so that structured docs
-    produced by docling don't end up with titles like ``# My Document``.
+    ATX Markdown heading markers (``# … ######``) are stripped so that
+    structured docs produced by docling don't produce titles like
+    ``# My Document``.  Non-heading lines that start with ``#``
+    (e.g. shebangs, config comments) are left intact.
     """
     for line in text.splitlines():
-        line = line.strip().lstrip("#").strip()
-        if line:
-            return line[:120]
+        line = line.strip()
+        if not line:
+            continue
+        m = _ATX_HEADING_RE.match(line)
+        return (m.group(1).strip() if m else line)[:120]
     return fallback
 
 

@@ -9,9 +9,8 @@ import sys
 
 from src.common.config import get_settings, project_root
 from src.common.models import Chunk, ChunkMetadata
+from src.ingest._fence import FENCE_OPEN_RE, is_closing_fence
 from src.ingest.parse_docling import DOCLING_MARKER
-
-_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
 
 
 def _extract_title(text: str, fallback: str) -> str:
@@ -52,16 +51,18 @@ def chunk_text(
     return chunks
 
 
-def _split_into_blocks(text: str) -> list[str]:
+def split_into_blocks(text: str) -> list[str]:
     """Split Markdown text into semantic blocks preserving tables and code fences.
 
     Each returned block is one of:
     - a fenced code block (``` ... ```)
-    - a contiguous run of table rows (| ... |)
-    - a heading together with the paragraph that follows it; blank lines
-      between a heading and its body are absorbed, and a heading-only block
-      pending new content is discarded when a subsequent heading arrives
-      (a heading that trails the entire input may still be emitted alone)
+    - a contiguous run of table rows (| ... |), optionally preceded by a
+      heading that is merged into the block rather than emitted in isolation
+    - a heading merged with the content that follows it (paragraph, table, or
+      fence); blank lines between a heading and its body are absorbed, and a
+      heading-only block pending new content is discarded when a subsequent
+      heading arrives (a heading that trails the entire input may still be
+      emitted alone)
     - a regular paragraph
     """
     blocks: list[str] = []
@@ -75,7 +76,7 @@ def _split_into_blocks(text: str) -> list[str]:
         # ---- Code fence handling ----
         # Track the opening delimiter so a mismatched marker inside the fence
         # (e.g. a ``` line inside a ~~~ block) does not prematurely close it.
-        m = _FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
+        m = FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
         if m:
             # Opening a new fence: flush any pending paragraph first.
             # If current contains only headings, keep them so the heading
@@ -93,7 +94,7 @@ def _split_into_blocks(text: str) -> list[str]:
 
         if fence_opener is not None:
             current.append(line)
-            if stripped.lstrip(fence_opener[0]) == "" and len(stripped) >= len(fence_opener):
+            if is_closing_fence(stripped, fence_opener):
                 # Closing fence: only delimiter chars, no info string (e.g. not ```python)
                 blocks.append("\n".join(current))
                 current = []
@@ -166,7 +167,7 @@ def _split_into_blocks(text: str) -> list[str]:
     return [b for b in blocks if b.strip()]
 
 
-def _last_heading(blocks: list[str], from_idx: int) -> str:
+def last_heading(blocks: list[str], from_idx: int) -> str:
     """Return text of the nearest Markdown heading at or before *from_idx* in *blocks*.
 
     Searches backwards from *from_idx* (inclusive) so that a chunk whose first
@@ -201,7 +202,7 @@ def chunk_structured_markdown(
     if overlap >= chunk_size:
         raise ValueError(f"overlap ({overlap}) must be < chunk_size ({chunk_size})")
 
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     if not blocks:
         return []
 
@@ -218,18 +219,18 @@ def chunk_structured_markdown(
         # Oversized single block: flush accumulated then emit block alone
         if block_words > chunk_size:
             if current_blocks:
-                section = _last_heading(blocks, current_start_idx)
+                section = last_heading(blocks, current_start_idx)
                 result.append(("\n\n".join(current_blocks), section))
                 current_blocks = []
                 current_word_count = 0
-            section = _last_heading(blocks, i)
+            section = last_heading(blocks, i)
             result.append((block, section))
             current_start_idx = i + 1
             continue
 
         # Adding this block would exceed chunk_size: flush accumulated first
         if current_blocks and current_word_count + block_words > chunk_size:
-            section = _last_heading(blocks, current_start_idx)
+            section = last_heading(blocks, current_start_idx)
             result.append(("\n\n".join(current_blocks), section))
 
             # Overlap: keep trailing blocks that fit within the overlap budget,
@@ -254,7 +255,7 @@ def chunk_structured_markdown(
         current_word_count += block_words
 
     if current_blocks:
-        section = _last_heading(blocks, current_start_idx)
+        section = last_heading(blocks, current_start_idx)
         result.append(("\n\n".join(current_blocks), section))
 
     return result

@@ -3,10 +3,10 @@
 import pytest
 
 from src.ingest.chunk import (
-    _last_heading,
-    _split_into_blocks,
     chunk_structured_markdown,
     chunk_text,
+    last_heading,
+    split_into_blocks,
 )
 from src.ingest.clean import clean_text
 from src.ingest.parse_docling import DOCLING_MARKER
@@ -98,13 +98,13 @@ def test_chunk_no_empty_chunks():
 
 
 # ---------------------------------------------------------------------------
-# _split_into_blocks
+# split_into_blocks
 # ---------------------------------------------------------------------------
 
 
 def test_split_paragraphs():
     text = "Para one.\n\nPara two.\n\nPara three."
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     assert len(blocks) == 3
     assert blocks[0] == "Para one."
     assert blocks[2] == "Para three."
@@ -112,7 +112,7 @@ def test_split_paragraphs():
 
 def test_split_heading_starts_new_block():
     text = "Some intro text.\n## Section A\nSection body."
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     assert any("## Section A" in b for b in blocks)
     assert any("Some intro text." in b for b in blocks)
 
@@ -121,14 +121,14 @@ def test_split_heading_attaches_to_following_paragraph():
     # A heading separated from its body by a blank line must not become an
     # isolated heading-only block — the heading and body should be one block.
     text = "## GPU Monitoring\n\nThis section covers GPU health."
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     assert len(blocks) == 1
     assert "## GPU Monitoring" in blocks[0]
     assert "This section covers GPU health." in blocks[0]
 
 
 def test_split_heading_only_chunk_section_metadata():
-    # _last_heading must still work when a heading is part of a merged block.
+    # last_heading must still work when a heading is part of a merged block.
     # Build the body so each "## Section" heading is on its own line.
     body = "## Section\n\n" + " ".join(f"word{i}" for i in range(100))
     chunks = chunk_structured_markdown(body, chunk_size=20, overlap=2)
@@ -138,7 +138,7 @@ def test_split_heading_only_chunk_section_metadata():
 def test_split_table_is_single_block():
     rows = "| Col A | Col B |\n|-------|-------|\n| val 1 | val 2 |\n| val 3 | val 4 |"
     text = f"Intro.\n\n{rows}\n\nOutro."
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     table_blocks = [b for b in blocks if b.startswith("|")]
     assert len(table_blocks) == 1, "Table should be a single block"
     assert "val 3" in table_blocks[0]
@@ -147,7 +147,7 @@ def test_split_table_is_single_block():
 
 def test_split_code_fence_is_single_block():
     text = "Intro.\n\n```python\ndef foo():\n    return 42\n```\n\nOutro."
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     fence_blocks = [b for b in blocks if b.startswith("```")]
     assert len(fence_blocks) == 1
     assert "def foo():" in fence_blocks[0]
@@ -156,14 +156,14 @@ def test_split_code_fence_is_single_block():
 
 def test_split_tilde_fence():
     text = "~~~bash\necho hello\n~~~"
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     assert any("echo hello" in b for b in blocks)
 
 
 def test_split_fence_info_string_not_treated_as_closer():
     # A line like ```python inside a ~~~-opened fence must NOT close it.
     text = "~~~\nsome code\n```python\nmore code\n~~~"
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     fence_blocks = [b for b in blocks if b.startswith("~~~")]
     assert len(fence_blocks) == 1, "Opening info-string line must not close the fence"
     assert "```python" in fence_blocks[0]
@@ -173,7 +173,7 @@ def test_split_fence_info_string_not_treated_as_closer():
 def test_split_consecutive_headings_no_isolated_block():
     # When H1 is immediately followed by H2, H1 must not become a standalone block.
     text = "## Section A\n\n## Section B\n\nContent here."
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     isolated = [b for b in blocks if b.strip() == "## Section A"]
     assert not isolated, "Superseded heading must not be emitted as an isolated block"
     combined = [b for b in blocks if "## Section B" in b and "Content here" in b]
@@ -183,7 +183,7 @@ def test_split_consecutive_headings_no_isolated_block():
 def test_split_longer_fence_not_closed_by_shorter():
     # A 4-backtick fence must not be closed by a 3-backtick line inside it.
     text = "````\nsome content\n```\nmore content\n````"
-    blocks = _split_into_blocks(text)
+    blocks = split_into_blocks(text)
     fence_blocks = [b for b in blocks if b.startswith("````")]
     assert len(fence_blocks) == 1
     assert "```" in fence_blocks[0]
@@ -201,22 +201,22 @@ def test_clean_fence_info_string_not_treated_as_closer():
 
 
 def test_split_empty_input():
-    assert _split_into_blocks("") == []
+    assert split_into_blocks("") == []
 
 
 # ---------------------------------------------------------------------------
-# _last_heading
+# last_heading
 # ---------------------------------------------------------------------------
 
 
 def test_last_heading_found():
     blocks = ["## GPU Monitoring", "Some paragraph.", "More text."]
-    assert _last_heading(blocks, 2) == "GPU Monitoring"
+    assert last_heading(blocks, 2) == "GPU Monitoring"
 
 
 def test_last_heading_none():
     blocks = ["Just a paragraph.", "Another paragraph."]
-    assert _last_heading(blocks, 1) == ""
+    assert last_heading(blocks, 1) == ""
 
 
 # ---------------------------------------------------------------------------

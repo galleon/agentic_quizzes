@@ -6,19 +6,10 @@ import re
 import sys
 
 from src.common.config import get_settings, project_root
+from src.ingest._fence import FENCE_OPEN_RE, is_closing_fence
 
 _MULTI_SPACE = re.compile(r"[ \t]{2,}")
 _PAGE_MARKER = re.compile(r"<!-- page \d+ -->")
-_FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
-
-
-def _is_closing_fence(stripped: str, opener: str) -> bool:
-    """Return True only when *stripped* is a valid closing fence for *opener*.
-
-    A closing fence must consist solely of the fence delimiter character
-    (no info string like ```python) and be at least as long as the opener.
-    """
-    return stripped.lstrip(opener[0]) == "" and len(stripped) >= len(opener)
 
 
 def clean_text(raw: str) -> str:
@@ -37,12 +28,12 @@ def clean_text(raw: str) -> str:
 
     for line in text.splitlines():
         stripped = line.strip()
-        m = _FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
+        m = FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
         if m:
             fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
             blank_run = 0
             cleaned.append(line.rstrip())
-        elif fence_opener is not None and _is_closing_fence(stripped, fence_opener):
+        elif fence_opener is not None and is_closing_fence(stripped, fence_opener):
             fence_opener = None
             blank_run = 0
             cleaned.append(line.rstrip())

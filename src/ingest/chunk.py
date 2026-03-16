@@ -15,9 +15,13 @@ _FENCE_OPEN_RE = re.compile(r"^(`{3,}|~{3,})")
 
 
 def _extract_title(text: str, fallback: str) -> str:
-    """Try to grab the first non-empty line as the document title."""
+    """Try to grab the first non-empty line as the document title.
+
+    Markdown heading markers (``#``) are stripped so that structured docs
+    produced by docling don't end up with titles like ``# My Document``.
+    """
     for line in text.splitlines():
-        line = line.strip()
+        line = line.strip().lstrip("#").strip()
         if line:
             return line[:120]
     return fallback

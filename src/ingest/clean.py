@@ -47,7 +47,9 @@ def clean_text(raw: str) -> str:
             blank_run = 0
             cleaned.append(line.rstrip())
         elif fence_opener is not None:
-            # Inside fence: preserve line verbatim (indentation + blank lines)
+            # Inside fence: preserve indentation and blank lines;
+            # trailing whitespace is still stripped (rstrip) as it is never
+            # meaningful and avoids invisible whitespace in output.
             cleaned.append(line.rstrip())
         else:
             if not stripped:

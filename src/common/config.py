@@ -49,6 +49,13 @@ class IngestConfig(BaseModel):
     chunk_overlap: int = 64
 
 
+class ExamInfoConfig(BaseModel):
+    title: str = "Practice Questions"
+    certifications: list[str] = Field(default_factory=list)
+    time_limit_minutes: int = 30
+    passing_score: int = 70
+
+
 class QuizConfig(BaseModel):
     outputs_dir: str = "outputs"
     quizzes_dir: str = "outputs/quizzes"
@@ -68,6 +75,7 @@ class Settings(BaseModel):
     qdrant: QdrantConfig = Field(default_factory=QdrantConfig)
     ingest: IngestConfig = Field(default_factory=IngestConfig)
     quiz: QuizConfig = Field(default_factory=QuizConfig)
+    exam_info: ExamInfoConfig = Field(default_factory=ExamInfoConfig)
 
 
 def _find_project_root() -> Path:

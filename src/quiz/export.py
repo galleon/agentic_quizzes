@@ -1,12 +1,14 @@
-"""Export quiz to Markdown, JSON, and CSV formats."""
+"""Export quiz to Markdown, JSON, CSV, and Gradio formats."""
 
 from __future__ import annotations
 
 import argparse
 import csv
+import json
 import sys
+from datetime import date
 
-from src.common.config import get_settings, project_root
+from src.common.config import ExamInfoConfig, get_settings, project_root
 from src.common.models import Quiz
 from src.common.slug import make_slug
 
@@ -84,8 +86,53 @@ def to_csv_rows(quiz: Quiz) -> list[dict]:
     return rows
 
 
+def to_gradio(quiz: Quiz, exam_info_overrides: ExamInfoConfig | None = None) -> dict:
+    """Serialise *quiz* to the Gradio-compatible schema used by the HuggingFace Space.
+
+    Only MCQ items that have not been rejected are included.  ``correct_answer``
+    is 1-indexed (the Space convention) while ``answer_index`` is 0-indexed.
+
+    ``exam_info_overrides`` takes precedence over whatever is in settings.yaml;
+    pass ``None`` to use the project defaults.
+    """
+    cfg_exam = exam_info_overrides or get_settings().exam_info
+    accepted_mcq = [
+        i
+        for i in quiz.items
+        if i.question_type == "mcq"
+        and i.confidence_flag != "rejected"
+        and i.choices
+        and i.answer_index is not None
+        and 0 <= i.answer_index < len(i.choices)
+    ]
+    questions = []
+    for n, item in enumerate(accepted_mcq, 1):
+        questions.append(
+            {
+                "id": n,
+                "section": quiz.topic,
+                "question": item.question,
+                "options": item.choices,
+                "correct_answer": item.answer_index + 1,  # 1-indexed
+                "explanation": item.rationale,
+            }
+        )
+    last_updated = date.today().strftime("%B %Y")
+    return {
+        "exam_info": {
+            "title": cfg_exam.title,
+            "certifications": cfg_exam.certifications,
+            "total_questions": len(questions),
+            "time_limit_minutes": cfg_exam.time_limit_minutes,
+            "passing_score": cfg_exam.passing_score,
+            "last_updated": last_updated,
+        },
+        "questions": questions,
+    }
+
+
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Export quiz to MD/JSON/CSV.")
+    parser = argparse.ArgumentParser(description="Export quiz to MD/JSON/CSV/Gradio.")
     parser.add_argument("--topic", required=True)
     parser.add_argument("--formats", nargs="+", default=["md", "json", "csv"])
     args = parser.parse_args()
@@ -157,6 +204,12 @@ def main() -> None:
     if "json" in args.formats:
         # Already exists; optionally export a clean version without embeddings
         print(f"JSON: {quiz_path} (already written by generate/validate)")
+
+    if "gradio" in args.formats:
+        gradio_data = to_gradio(quiz)
+        out = quizzes_dir / f"{slug}.gradio.json"
+        out.write_text(json.dumps(gradio_data, indent=2, ensure_ascii=False), encoding="utf-8")
+        print(f"Gradio: {out}")
 
     # Write rationales (only accepted items, numbered to match the exported quiz)
     rationale_lines = []

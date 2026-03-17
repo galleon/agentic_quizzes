@@ -3,22 +3,12 @@
 from __future__ import annotations
 
 import sys
+from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-import pymupdf  # PyMuPDF
-
 from src.common.config import get_settings, project_root
-
-
-def parse_pdf(pdf_path: Path) -> str:
-    with pymupdf.open(str(pdf_path)) as doc:
-        pages = []
-        for i, page in enumerate(doc):
-            text = page.get_text()
-            if text.strip():
-                pages.append(f"<!-- page {i + 1} -->\n{text}")
-    return "\n\n".join(pages)
+from src.ingest.parse_docling import parse_pdf_docling
 
 
 def parse_text(path: Path) -> str:
@@ -27,8 +17,8 @@ def parse_text(path: Path) -> str:
 
 # Maps file extensions to their parser functions.
 # Keep in sync with IngestConfig.supported_extensions in src/common/config.py.
-_PARSERS = {
-    ".pdf": parse_pdf,
+_PARSERS: dict[str, Callable[[Path], str]] = {
+    ".pdf": parse_pdf_docling,
     ".txt": parse_text,
     ".md": parse_text,
     ".html": parse_text,
@@ -36,7 +26,9 @@ _PARSERS = {
 
 
 def parse_file(path: Path) -> str:
-    parser = _PARSERS.get(path.suffix.lower())
+    """Parse a single file to text."""
+    suffix = path.suffix.lower()
+    parser = _PARSERS.get(suffix)
     if parser is None:
         print(f"  [skip] unsupported extension: {path.suffix}", file=sys.stderr)
         return ""

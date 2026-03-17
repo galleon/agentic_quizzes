@@ -6,8 +6,8 @@ import re
 import sys
 
 from src.common.config import get_settings, project_root
+from src.ingest._fence import FENCE_OPEN_RE, is_closing_fence
 
-_MULTI_NEWLINE = re.compile(r"\n{3,}")
 _MULTI_SPACE = re.compile(r"[ \t]{2,}")
 _PAGE_MARKER = re.compile(r"<!-- page \d+ -->")
 
@@ -15,13 +15,44 @@ _PAGE_MARKER = re.compile(r"<!-- page \d+ -->")
 def clean_text(raw: str) -> str:
     # Drop page markers (keep content)
     text = _PAGE_MARKER.sub("", raw)
-    # Collapse excessive whitespace
-    text = _MULTI_SPACE.sub(" ", text)
-    text = _MULTI_NEWLINE.sub("\n\n", text)
-    # Strip leading/trailing whitespace per line
-    lines = [line.rstrip() for line in text.splitlines()]
-    text = "\n".join(lines).strip()
-    return text
+
+    # Process line by line so that fence-interior content is never modified:
+    # - inside a fence: preserve all whitespace (indentation, blank lines)
+    # - outside a fence: collapse runs of spaces/tabs; limit to one blank line
+    #   between paragraphs (i.e. suppress any blank line beyond the first in a
+    #   consecutive run, equivalent to collapsing \n{3,} → \n\n but only
+    #   outside fences).
+    cleaned: list[str] = []
+    fence_opener: str | None = None
+    blank_run = 0
+
+    for line in text.splitlines():
+        stripped = line.strip()
+        m = FENCE_OPEN_RE.match(stripped) if fence_opener is None else None
+        if m:
+            fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
+            blank_run = 0
+            cleaned.append(line.rstrip())
+        elif fence_opener is not None and is_closing_fence(stripped, fence_opener):
+            fence_opener = None
+            blank_run = 0
+            cleaned.append(line.rstrip())
+        elif fence_opener is not None:
+            # Inside fence: preserve indentation and blank lines;
+            # trailing whitespace is still stripped (rstrip) as it is never
+            # meaningful and avoids invisible whitespace in output.
+            cleaned.append(line.rstrip())
+        else:
+            if not stripped:
+                blank_run += 1
+                if blank_run == 1:
+                    cleaned.append("")
+                # else: suppress extra blank lines
+            else:
+                blank_run = 0
+                cleaned.append(_MULTI_SPACE.sub(" ", line).rstrip())
+
+    return "\n".join(cleaned).strip()
 
 
 def main() -> None:

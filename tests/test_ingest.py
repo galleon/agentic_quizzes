@@ -230,6 +230,13 @@ def test_last_heading_merged_block_returns_innermost():
     assert last_heading(blocks, 0) == "Section"
 
 
+def test_last_heading_ignores_headings_inside_fence():
+    # A '# comment' line inside a fenced code block must not be reported as
+    # a section heading.
+    blocks = ["## Real Heading\n\n```python\n# not a heading\n```"]
+    assert last_heading(blocks, 0) == "Real Heading"
+
+
 # ---------------------------------------------------------------------------
 # chunk_structured_markdown
 # ---------------------------------------------------------------------------

@@ -189,16 +189,28 @@ def last_heading(blocks: list[str], from_idx: int) -> str:
     """Return the most specific Markdown heading at or before *from_idx*.
 
     Searches backwards through blocks from *from_idx* (inclusive).  Within
-    each block, lines are scanned bottom-to-top so that when multiple headings
-    have been merged into one block (e.g. ``# Title`` + ``## Section`` +
-    paragraph) the innermost / most specific heading is returned rather than
-    the outermost one.
+    each block, lines are scanned top-to-bottom while tracking fence state so
+    that heading-like lines inside fenced code blocks are ignored.  The last
+    heading found outside a fence is returned, giving the most specific
+    heading when multiple headings have been merged into one block.
     """
     for i in range(from_idx, -1, -1):
-        for line in reversed(blocks[i].splitlines()):
-            m = _ATX_HEADING_RE.match(line.strip())
-            if m:
-                return m.group(1).strip()[:80]
+        fence_opener: str | None = None
+        last: str = ""
+        for line in blocks[i].splitlines():
+            stripped = line.strip()
+            if fence_opener is None:
+                mf = FENCE_OPEN_RE.match(stripped)
+                if mf:
+                    fence_opener = mf.group(1)
+                    continue
+                mh = _ATX_HEADING_RE.match(stripped)
+                if mh:
+                    last = mh.group(1).strip()[:80]
+            elif is_closing_fence(stripped, fence_opener):
+                fence_opener = None
+        if last:
+            return last
     return ""
 
 

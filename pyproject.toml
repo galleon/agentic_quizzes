@@ -25,6 +25,9 @@ dev = [
     "ruff>=0.15",
     "pre-commit>=3.7",
 ]
+app = [
+    "gradio>=4.0",
+]
 
 [tool.ruff]
 line-length = 100

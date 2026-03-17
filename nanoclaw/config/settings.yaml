@@ -31,6 +31,12 @@ ingest:
   chunk_size: 512         # words (text.split()); ~2000 chars / ~500 tokens per chunk
   chunk_overlap: 64       # words
 
+exam_info:
+  title: "NVIDIA Certification Practice Questions"
+  certifications: ["NCP-AII", "NCP-AIO"]
+  time_limit_minutes: 30
+  passing_score: 70
+
 quiz:
   outputs_dir: "outputs"
   quizzes_dir: "outputs/quizzes"

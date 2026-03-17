@@ -1,15 +1,17 @@
 """Gradio interactive quiz app.
 
+Two modes
+---------
+Practice  — answer each question and get immediate feedback + rationale before moving on.
+Exam      — answer all questions within a time limit; full debrief with explanations at the end.
+
 Launch with:
     uv run --group app python app.py
-
-Or deploy to HuggingFace Spaces by pointing at pre-generated Gradio JSON files
-in outputs/quizzes/*.gradio.json.
 """
 
 from __future__ import annotations
 
-import html
+import html as _html
 import json
 from pathlib import Path
 
@@ -17,20 +19,18 @@ import gradio as gr
 
 from src.common.config import get_settings, project_root
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
 _LETTER = "ABCD"
+
+# ---------------------------------------------------------------------------
+# Path / data helpers
+# ---------------------------------------------------------------------------
 
 
 def _quizzes_dir() -> Path:
-    cfg = get_settings()
-    return project_root() / cfg.quiz.quizzes_dir
+    return project_root() / get_settings().quiz.quizzes_dir
 
 
 def _list_quizzes() -> list[str]:
-    """Return display names (stems) of available Gradio quiz JSON files."""
     d = _quizzes_dir()
     if not d.exists():
         return []
@@ -39,161 +39,112 @@ def _list_quizzes() -> list[str]:
 
 def _load_quiz(name: str) -> dict | None:
     path = _quizzes_dir() / f"{name}.gradio.json"
-    if not path.exists():
-        return None
-    return json.loads(path.read_text(encoding="utf-8"))
+    return json.loads(path.read_text(encoding="utf-8")) if path.exists() else None
 
 
 # ---------------------------------------------------------------------------
-# State helpers — pure functions operating on the session state dict
+# State
 # ---------------------------------------------------------------------------
 
 
 def _initial_state() -> dict:
     return {
-        "quiz": None,  # full Gradio JSON dict
-        "idx": 0,  # current question index (0-based)
-        "answers": [],  # user's answer indices (1-based, None if not answered)
-        "submitted": False,  # whether current question has been submitted
+        "quiz": None,
+        "idx": 0,
+        "answers": [],  # 1-based chosen index per question, None = unanswered
+        "submitted": False,  # whether current question was submitted (practice only)
+        "mode": "practice",  # "practice" | "exam"
     }
-
-
-def _current_question(state: dict) -> dict | None:
-    q = state.get("quiz")
-    if q is None:
-        return None
-    questions = q.get("questions", [])
-    idx = state.get("idx", 0)
-    return questions[idx] if idx < len(questions) else None
 
 
 def _total(state: dict) -> int:
     q = state.get("quiz")
-    return len(q.get("questions", [])) if q else 0
+    return len(q["questions"]) if q else 0
+
+
+def _current_q(state: dict) -> dict | None:
+    q = state.get("quiz")
+    if not q:
+        return None
+    qs = q["questions"]
+    idx = state["idx"]
+    return qs[idx] if idx < len(qs) else None
 
 
 def _score(state: dict) -> int:
     q = state.get("quiz")
     if not q:
         return 0
-    correct = 0
-    for i, ans in enumerate(state["answers"]):
-        questions = q["questions"]
-        if i < len(questions) and ans == questions[i]["correct_answer"]:
-            correct += 1
-    return correct
-
-
-# ---------------------------------------------------------------------------
-# Event handlers
-# ---------------------------------------------------------------------------
-
-
-def on_load_quiz(name: str) -> tuple:
-    """Load a quiz by name and return initial UI state (7 outputs)."""
-    blank = (
-        _initial_state(),
-        _no_quiz_html(),
-        gr.update(choices=[], value=None),
-        gr.update(visible=False),  # btn_submit
-        gr.update(visible=False),  # btn_next
-        gr.update(visible=False),  # btn_summary
-        gr.update(value="", visible=False),  # summary_html
-    )
-    if not name:
-        return blank
-
-    quiz = _load_quiz(name)
-    if quiz is None:
-        return blank
-
-    state = _initial_state()
-    state["quiz"] = quiz
-    state["answers"] = [None] * len(quiz.get("questions", []))
-
-    question_html, choices, submit_vis, next_vis, summary_vis = _render_question(state)
-    return (
-        state,
-        question_html,
-        gr.update(choices=choices, value=None, interactive=True),
-        submit_vis,
-        next_vis,
-        summary_vis,
-        gr.update(value="", visible=False),  # reset summary panel
+    return sum(
+        1
+        for i, ans in enumerate(state["answers"])
+        if i < len(q["questions"]) and ans == q["questions"][i]["correct_answer"]
     )
 
 
-def on_submit(state: dict, choice: str | None) -> tuple:
-    """Record the user's answer and reveal rationale (6 outputs)."""
-    if state.get("quiz") is None or choice is None:
-        return (
-            state,
-            gr.update(),
-            gr.update(),
-            gr.update(),
-            gr.update(),
-            gr.update(),
-        )
-
-    # Parse chosen letter back to 1-based index
+def _record_answer(state: dict, choice: str | None) -> None:
+    """Parse the radio choice string and store the 1-based index in state."""
+    if choice is None or not state.get("quiz"):
+        return
     letter = choice.split(")")[0].strip() if ")" in choice else choice
     chosen_idx = _LETTER.index(letter) + 1 if letter in _LETTER else None
-
     idx = state["idx"]
-    state["answers"][idx] = chosen_idx
-    state["submitted"] = True
+    if idx < len(state["answers"]):
+        state["answers"][idx] = chosen_idx
 
-    question = _current_question(state)
-    correct = question["correct_answer"]
-    is_correct = chosen_idx == correct
-    explanation = question.get("explanation", "")
 
-    # Build feedback HTML — escape LLM-generated text before embedding
-    correct_letter = _LETTER[correct - 1]
-    verdict = "✅ Correct!" if is_correct else f"❌ Incorrect. Correct answer: {correct_letter})"
-    feedback_parts = [f"<div style='margin-top:1em'><strong>{verdict}</strong>"]
-    if explanation:
-        feedback_parts.append(f"<p><em>Rationale:</em> {html.escape(explanation)}</p>")
-    feedback_parts.append("</div>")
-    feedback_html = "".join(feedback_parts)
+# ---------------------------------------------------------------------------
+# HTML rendering (all LLM-generated text is escaped)
+# ---------------------------------------------------------------------------
 
-    question_html, choices, _, _, _ = _render_question(state)
-    full_html = question_html + feedback_html
 
+def _no_quiz_html() -> str:
+    return "<p style='color:grey'>Select a quiz and click <strong>▶ Load</strong> to begin.</p>"
+
+
+def _question_html(state: dict, with_feedback: bool = False) -> str:
+    q = _current_q(state)
+    if q is None:
+        return _no_quiz_html()
+    idx = state["idx"]
     total = _total(state)
-    is_last = idx >= total - 1
-
-    return (
-        state,
-        full_html,
-        gr.update(choices=choices, interactive=False),  # lock radio
-        gr.update(visible=False),  # hide Submit
-        gr.update(visible=not is_last),  # Next (not on last)
-        gr.update(visible=is_last),  # Show summary button on last
+    section = _html.escape(q.get("section", ""))
+    text = _html.escape(q.get("question", ""))
+    section_tag = (
+        f"<span style='color:#7f8c8d;font-size:0.85em'>{section}</span><br>" if section else ""
     )
-
-
-def on_next(state: dict) -> tuple:
-    """Advance to the next question (7 outputs)."""
-    state["idx"] += 1
-    state["submitted"] = False
-    question_html, choices, submit_vis, next_vis, summary_vis = _render_question(state)
-    return (
-        state,
-        question_html,
-        gr.update(choices=choices, value=None, interactive=True),
-        submit_vis,
-        next_vis,
-        summary_vis,
-        gr.update(visible=False),  # keep summary panel hidden between questions
+    out = (
+        f"{section_tag}"
+        f"<strong>Q{idx + 1} / {total}</strong><br>"
+        f"<p style='font-size:1.1em'>{text}</p>"
     )
+    if with_feedback:
+        ans = state["answers"][idx] if idx < len(state["answers"]) else None
+        correct = q["correct_answer"]
+        is_correct = ans == correct
+        correct_letter = _LETTER[correct - 1]
+        verdict = (
+            "✅ Correct!" if is_correct else f"❌ Incorrect — correct answer: {correct_letter})"
+        )
+        rationale = _html.escape(q.get("explanation", ""))
+        out += f"<div style='margin-top:0.8em'><strong>{verdict}</strong>"
+        if rationale:
+            out += f"<p><em>Rationale:</em> {rationale}</p>"
+        out += "</div>"
+    return out
 
 
-def on_summary(state: dict) -> gr.update:
-    """Build the final score summary and make the panel visible."""
+def _choices(state: dict) -> list[str]:
+    q = _current_q(state)
+    if not q:
+        return []
+    return [f"{_LETTER[i]}) {opt}" for i, opt in enumerate(q.get("options", []))]
+
+
+def _debrief_html(state: dict) -> str:
     quiz = state.get("quiz")
     if not quiz:
-        return gr.update(value="", visible=False)
+        return ""
     exam = quiz.get("exam_info", {})
     total = _total(state)
     score = _score(state)
@@ -201,75 +152,216 @@ def on_summary(state: dict) -> gr.update:
     pct = round(score / total * 100) if total else 0
     passed = pct >= passing
     badge = "🎉 PASSED" if passed else "❌ FAILED"
-    color = "#2ecc71" if passed else "#e74c3c"
+    color = "#27ae60" if passed else "#c0392b"
 
     lines = [
         f"<h2 style='color:{color}'>{badge}</h2>",
         f"<p><strong>Score:</strong> {score}/{total} ({pct}%)</p>",
         f"<p><strong>Passing threshold:</strong> {passing}%</p>",
-        "<hr><h3>Review</h3><ol>",
+        "<hr><h3>Question Review</h3><ol>",
     ]
     for i, q in enumerate(quiz["questions"]):
-        user_ans = state["answers"][i]
+        user_ans = state["answers"][i] if i < len(state["answers"]) else None
         correct = q["correct_answer"]
         options = q.get("options", [])
         user_letter = _LETTER[user_ans - 1] if user_ans and 1 <= user_ans <= 4 else "–"
         correct_letter = _LETTER[correct - 1]
         ok = "✅" if user_ans == correct else "❌"
-        correct_text = html.escape(options[correct - 1]) if 0 < correct <= len(options) else ""
-        question_snippet = html.escape(q["question"][:80])
+        correct_text = _html.escape(options[correct - 1]) if 0 < correct <= len(options) else ""
+        explanation = _html.escape(q.get("explanation", ""))
+        snippet = _html.escape(q["question"][:100])
         lines.append(
-            f"<li>{ok} <em>{question_snippet}…</em><br>"
-            f"Your answer: {user_letter} | Correct: {correct_letter}) {correct_text}</li>"
+            f"<li style='margin-bottom:0.8em'>{ok} <em>{snippet}…</em><br>"
+            f"Your answer: <strong>{user_letter}</strong> | "
+            f"Correct: <strong>{correct_letter}) {correct_text}</strong>"
         )
+        if explanation:
+            lines.append(f"<br><small><em>Rationale: {explanation}</em></small>")
+        lines.append("</li>")
     lines.append("</ol>")
-    return gr.update(value="\n".join(lines), visible=True)
+    return "\n".join(lines)
+
+
+def _timer_html(minutes: int) -> str:
+    """Client-side countdown timer.  Uses a generation counter so reloading
+    the quiz cancels any previous interval without needing server round-trips."""
+    seconds = minutes * 60
+    return f"""
+<div style="font-size:1.4em;font-weight:bold;color:#c0392b;margin-bottom:0.5em">
+  ⏱ <span id="quiz-timer-display">--:--</span>
+</div>
+<script>
+(function() {{
+  window._quizTimerGen = (window._quizTimerGen || 0) + 1;
+  var myGen = window._quizTimerGen;
+  var remaining = {seconds};
+  var el = null;
+  function tick() {{
+    if (window._quizTimerGen !== myGen) return;
+    if (!el) el = document.getElementById('quiz-timer-display');
+    if (!el) {{ setTimeout(tick, 200); return; }}
+    var m = Math.floor(remaining / 60);
+    var s = remaining % 60;
+    el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
+    if (remaining > 0) {{
+      remaining--;
+      setTimeout(tick, 1000);
+    }} else {{
+      el.textContent = "00:00 \u2014 Time\u2019s up!";
+      el.parentElement.style.color = '#e74c3c';
+    }}
+  }}
+  tick();
+}})();
+</script>
+"""
 
 
 # ---------------------------------------------------------------------------
-# Rendering helpers
+# Event handlers
+#
+# Output contract (9 values, used by load + next + finish):
+#   state, question_html, radio,
+#   btn_submit, btn_next, btn_finish, btn_summary,
+#   summary_html, timer_html
 # ---------------------------------------------------------------------------
 
-
-def _no_quiz_html() -> str:
-    return "<p style='color:grey'>Select a quiz and click <strong>Load</strong> to begin.</p>"
+_N = 9  # number of full-view outputs
 
 
-def _render_question(state: dict) -> tuple:
-    """Return (question_html, radio_choices, submit_vis, next_vis, summary_vis)."""
-    question = _current_question(state)
-    if question is None:
-        return (
-            _no_quiz_html(),
-            [],
-            gr.update(visible=False),
-            gr.update(visible=False),
-            gr.update(visible=False),
-        )
+def _blank() -> tuple:
+    """Return a fully-reset 9-output tuple (no quiz loaded)."""
+    return (
+        _initial_state(),
+        _no_quiz_html(),
+        gr.update(choices=[], value=None),
+        gr.update(visible=False),  # btn_submit
+        gr.update(visible=False),  # btn_next
+        gr.update(visible=False),  # btn_finish
+        gr.update(visible=False),  # btn_summary
+        gr.update(value="", visible=False),  # summary_html
+        gr.update(value="", visible=False),  # timer_html
+    )
+
+
+def on_load_quiz(name: str, mode: str) -> tuple:
+    """Load a quiz and initialise the correct mode layout."""
+    if not name:
+        return _blank()
+    quiz = _load_quiz(name)
+    if quiz is None:
+        return _blank()
+
+    state = _initial_state()
+    state["quiz"] = quiz
+    state["mode"] = mode.lower()
+    state["answers"] = [None] * len(quiz.get("questions", []))
+
+    is_exam = state["mode"] == "exam"
+    exam_info = quiz.get("exam_info", {})
+
+    return (
+        state,
+        _question_html(state),
+        gr.update(choices=_choices(state), value=None, interactive=True),
+        gr.update(visible=not is_exam),  # btn_submit: practice only
+        gr.update(visible=is_exam),  # btn_next: exam immediately; practice after submit
+        gr.update(visible=is_exam),  # btn_finish: exam only
+        gr.update(visible=False),  # btn_summary
+        gr.update(value="", visible=False),  # summary_html
+        gr.update(
+            value=_timer_html(exam_info.get("time_limit_minutes", 30)),
+            visible=is_exam,
+        ),
+    )
+
+
+def on_submit(state: dict, choice: str | None) -> tuple:
+    """Practice mode: record answer, show immediate feedback.
+
+    6 outputs: state, question_html, radio, btn_submit, btn_next, btn_summary
+    (timer and btn_finish are exam-only and untouched here)
+    """
+    if not state.get("quiz") or choice is None:
+        return state, gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
+
+    _record_answer(state, choice)
+    state["submitted"] = True
 
     idx = state["idx"]
-    total = _total(state)
-    options = question.get("options", [])
-    choices = [f"{_LETTER[i]}) {opt}" for i, opt in enumerate(options)]
-
-    section = html.escape(question.get("section", ""))
-    section_tag = (
-        f"<span style='color:grey;font-size:0.85em'>{section}</span><br>" if section else ""
-    )
-    question_text = html.escape(question.get("question", ""))
-    question_html = (
-        f"{section_tag}"
-        f"<strong>Q{idx + 1} / {total}</strong><br>"
-        f"<p style='font-size:1.1em'>{question_text}</p>"
-    )
-    submitted = state.get("submitted", False)
+    is_last = idx >= _total(state) - 1
     return (
-        question_html,
-        choices,
-        gr.update(visible=not submitted),  # Submit
-        gr.update(visible=False),  # Next (shown after submit by on_submit)
-        gr.update(visible=False),  # Summary button
+        state,
+        _question_html(state, with_feedback=True),
+        gr.update(interactive=False),  # lock radio
+        gr.update(visible=False),  # hide Submit
+        gr.update(visible=not is_last),  # Next → next question
+        gr.update(visible=is_last),  # Show Results on last
     )
+
+
+def on_next(state: dict, choice: str | None) -> tuple:
+    """Advance to the next question.
+
+    Practice: ignores choice (already recorded by on_submit), resets submit flow.
+    Exam: records choice silently, shows next question; auto-finishes on last.
+    """
+    is_exam = state.get("mode") == "exam"
+
+    if is_exam:
+        _record_answer(state, choice)
+
+    state["idx"] += 1
+    state["submitted"] = False
+
+    is_done = state["idx"] >= _total(state)
+
+    # Exam: auto-finish when all questions answered
+    if is_exam and is_done:
+        return (
+            state,
+            gr.update(value="", visible=False),  # hide question
+            gr.update(choices=[], visible=False),  # hide radio
+            gr.update(visible=False),  # btn_submit
+            gr.update(visible=False),  # btn_next
+            gr.update(visible=False),  # btn_finish
+            gr.update(visible=False),  # btn_summary
+            gr.update(value=_debrief_html(state), visible=True),
+            gr.update(value="", visible=False),  # hide timer
+        )
+
+    return (
+        state,
+        _question_html(state),
+        gr.update(choices=_choices(state), value=None, interactive=True),
+        gr.update(visible=not is_exam),  # btn_submit: practice only
+        gr.update(visible=is_exam),  # btn_next: always in exam
+        gr.update(visible=is_exam),  # btn_finish: always in exam
+        gr.update(visible=False),  # btn_summary
+        gr.update(value="", visible=False),  # summary_html
+        gr.update(),  # timer: leave as-is
+    )
+
+
+def on_finish(state: dict, choice: str | None) -> tuple:
+    """Exam mode: record current answer (if any) and show full debrief."""
+    _record_answer(state, choice)
+    return (
+        state,
+        gr.update(value="", visible=False),
+        gr.update(choices=[], visible=False),
+        gr.update(visible=False),  # btn_submit
+        gr.update(visible=False),  # btn_next
+        gr.update(visible=False),  # btn_finish
+        gr.update(visible=False),  # btn_summary
+        gr.update(value=_debrief_html(state), visible=True),
+        gr.update(value="", visible=False),  # hide timer
+    )
+
+
+def on_show_results(state: dict) -> gr.update:
+    """Practice mode: show debrief after the last question."""
+    return gr.update(value=_debrief_html(state), visible=True)
 
 
 # ---------------------------------------------------------------------------
@@ -285,65 +377,62 @@ def build_ui() -> gr.Blocks:
 
         state = gr.State(_initial_state())
 
+        mode_radio = gr.Radio(
+            choices=["Practice", "Exam"],
+            value="Practice",
+            label="Mode",
+            info=(
+                "Practice: submit each answer to see immediate feedback. "
+                "Exam: answer all questions within the time limit, "
+                "then receive a full debrief."
+            ),
+        )
+
         with gr.Row():
-            quiz_dropdown = gr.Dropdown(
-                choices=available,
-                label="Select quiz",
-                scale=3,
-            )
+            quiz_dropdown = gr.Dropdown(choices=available, label="Select quiz", scale=3)
             btn_load = gr.Button("▶ Load", variant="primary", scale=1)
 
+        timer_html = gr.HTML(visible=False)
         question_html = gr.HTML(_no_quiz_html())
         radio = gr.Radio(choices=[], label="Your answer", interactive=True)
 
         with gr.Row():
             btn_submit = gr.Button("Submit", variant="primary", visible=False)
             btn_next = gr.Button("Next →", visible=False)
-            btn_summary = gr.Button("Show results", variant="secondary", visible=False)
+            btn_finish = gr.Button("⏹ Finish Exam", variant="stop", visible=False)
+            btn_summary = gr.Button("Show Results", variant="secondary", visible=False)
 
         summary_html = gr.HTML(visible=False)
 
-        # Shared output list for events that reset the full quiz view (7 outputs)
-        _quiz_view_outputs = [
+        # Full 9-output list shared by load / next / finish
+        _all = [
             state,
             question_html,
             radio,
             btn_submit,
             btn_next,
+            btn_finish,
             btn_summary,
             summary_html,
+            timer_html,
         ]
 
-        btn_load.click(
-            on_load_quiz,
-            inputs=[quiz_dropdown],
-            outputs=_quiz_view_outputs,
-        )
+        btn_load.click(on_load_quiz, inputs=[quiz_dropdown, mode_radio], outputs=_all)
+        quiz_dropdown.change(on_load_quiz, inputs=[quiz_dropdown, mode_radio], outputs=_all)
 
-        # Also trigger on dropdown change for keyboard/programmatic use
-        quiz_dropdown.change(
-            on_load_quiz,
-            inputs=[quiz_dropdown],
-            outputs=_quiz_view_outputs,
-        )
-
+        # Practice: Submit → feedback; Next → advance
         btn_submit.click(
             on_submit,
             inputs=[state, radio],
             outputs=[state, question_html, radio, btn_submit, btn_next, btn_summary],
         )
+        btn_next.click(on_next, inputs=[state, radio], outputs=_all)
 
-        btn_next.click(
-            on_next,
-            inputs=[state],
-            outputs=_quiz_view_outputs,
-        )
+        # Exam: Finish records last answer and shows debrief
+        btn_finish.click(on_finish, inputs=[state, radio], outputs=_all)
 
-        btn_summary.click(
-            on_summary,
-            inputs=[state],
-            outputs=[summary_html],
-        )
+        # Practice: Show Results after last question
+        btn_summary.click(on_show_results, inputs=[state], outputs=[summary_html])
 
     return demo
 

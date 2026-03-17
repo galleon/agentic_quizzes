@@ -103,6 +103,7 @@ def to_gradio(quiz: Quiz, exam_info_overrides: ExamInfoConfig | None = None) -> 
         and i.confidence_flag != "rejected"
         and i.choices
         and i.answer_index is not None
+        and 0 <= i.answer_index < len(i.choices)
     ]
     questions = []
     for n, item in enumerate(accepted_mcq, 1):

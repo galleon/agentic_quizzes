@@ -15,11 +15,6 @@ from src.ingest.parse_docling import DOCLING_MARKER
 _ATX_HEADING_RE = re.compile(r"^#{1,6}\s+(.*)")
 
 
-def _heading_only(lines: list[str]) -> bool:
-    """Return True when every non-empty line in *lines* is an ATX heading."""
-    return all(_ATX_HEADING_RE.match(ln.strip()) for ln in lines if ln.strip())
-
-
 def _extract_title(text: str, fallback: str) -> str:
     """Try to grab the first non-empty line as the document title.
 
@@ -83,6 +78,10 @@ def split_into_blocks(text: str) -> list[str]:
     """
     blocks: list[str] = []
     current: list[str] = []
+    # Incremental flag: True iff every non-empty line in current is an ATX
+    # heading.  Updated on every append so the four flush decision-points can
+    # check it in O(1) instead of rescanning current each time.
+    current_heading_only: bool = True
     fence_opener: str | None = None  # exact opening run, e.g. "```" or "````" or "~~~"
     in_table = False
 
@@ -97,23 +96,25 @@ def split_into_blocks(text: str) -> list[str]:
             # Opening a new fence: flush any pending paragraph first.
             # If current contains only headings, keep them so the heading
             # attaches to the fence block rather than becoming isolated.
-            if current:
-                heading_only = _heading_only(current)
-                if not heading_only:
-                    block = "\n".join(current).strip()
-                    if block:
-                        blocks.append(block)
-                    current = []
+            if current and not current_heading_only:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
+                current = []
+                current_heading_only = True
             fence_opener = m.group(1)  # exact run, e.g. "```" or "````" or "~~~"
             current.append(line)
+            current_heading_only = False  # fence delimiter is not a heading
             continue
 
         if fence_opener is not None:
             current.append(line)
+            current_heading_only = False  # fence content is never heading-only
             if is_closing_fence(stripped, fence_opener):
                 # Closing fence: only delimiter chars, no info string (e.g. not ```python)
                 blocks.append("\n".join(current))
                 current = []
+                current_heading_only = True
                 fence_opener = None
             continue
 
@@ -123,22 +124,23 @@ def split_into_blocks(text: str) -> list[str]:
             # Flush pending paragraph before the table.
             # If current contains only headings, keep them so the heading
             # attaches to the table block rather than becoming isolated.
-            if current:
-                heading_only = _heading_only(current)
-                if not heading_only:
-                    block = "\n".join(current).strip()
-                    if block:
-                        blocks.append(block)
-                    current = []
+            if current and not current_heading_only:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
+                current = []
+                current_heading_only = True
             in_table = True
         elif not is_table_row and in_table:
             # End of table — flush
             blocks.append("\n".join(current))
             current = []
+            current_heading_only = True
             in_table = False
 
         if in_table:
             current.append(line)
+            current_heading_only = False  # table rows are not headings
             continue
 
         # ---- Heading: flush pending paragraph first ----
@@ -146,29 +148,28 @@ def split_into_blocks(text: str) -> list[str]:
         # accumulate with the new heading and eventually attach to the next
         # content block, preserving hierarchical context (e.g. # Title + ##
         # Section both appear in the same block as their following paragraph).
-        if _ATX_HEADING_RE.match(stripped) and current:
-            heading_only = _heading_only(current)
-            if not heading_only:
-                block = "\n".join(current).strip()
-                if block:
-                    blocks.append(block)
-                current = []
+        if _ATX_HEADING_RE.match(stripped) and current and not current_heading_only:
+            block = "\n".join(current).strip()
+            if block:
+                blocks.append(block)
+            current = []
+            current_heading_only = True
 
         # ---- Blank line: flush pending paragraph ----
         # Exception: if current contains only heading lines, keep them so the
         # heading attaches to the following content rather than becoming an
         # isolated heading-only block (e.g. "## Heading\n\nParagraph" → one block).
         if not stripped:
-            if current:
-                heading_only = _heading_only(current)
-                if not heading_only:
-                    block = "\n".join(current).strip()
-                    if block:
-                        blocks.append(block)
-                    current = []
+            if current and not current_heading_only:
+                block = "\n".join(current).strip()
+                if block:
+                    blocks.append(block)
+                current = []
+                current_heading_only = True
             continue
 
         current.append(line)
+        current_heading_only = current_heading_only and bool(_ATX_HEADING_RE.match(stripped))
 
     # Flush remainder
     if current:

@@ -26,7 +26,7 @@ dev = [
     "pre-commit>=3.7",
 ]
 app = [
-    "gradio>=4.0",
+    "gradio>=4.44",  # 4.44+ required for gr.Timer (server-side polling for the countdown)
 ]
 
 [tool.ruff]

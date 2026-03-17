@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import time
 from pathlib import Path
 
 import gradio as gr
@@ -50,10 +51,13 @@ def _load_quiz(name: str) -> dict | None:
 def _initial_state() -> dict:
     return {
         "quiz": None,
+        "quiz_name": "",  # stored for restart
         "idx": 0,
         "answers": [],  # 1-based chosen index per question, None = unanswered
         "submitted": False,  # whether current question was submitted (practice only)
         "mode": "practice",  # "practice" | "exam"
+        "start_time": None,  # time.time() when exam started, None when inactive
+        "limit_seconds": 0,  # exam time limit in seconds
     }
 
 
@@ -182,55 +186,23 @@ def _debrief_html(state: dict) -> str:
     return "\n".join(lines)
 
 
-def _timer_html(minutes: int) -> str:
-    """Client-side countdown timer.  Uses a generation counter so reloading
-    the quiz cancels any previous interval without needing server round-trips."""
-    seconds = minutes * 60
-    return f"""
-<div style="font-size:1.4em;font-weight:bold;color:#c0392b;margin-bottom:0.5em">
-  ⏱ <span id="quiz-timer-display">--:--</span>
-</div>
-<script>
-(function() {{
-  window._quizTimerGen = (window._quizTimerGen || 0) + 1;
-  var myGen = window._quizTimerGen;
-  var remaining = {seconds};
-  var el = null;
-  function tick() {{
-    if (window._quizTimerGen !== myGen) return;
-    if (!el) el = document.getElementById('quiz-timer-display');
-    if (!el) {{ setTimeout(tick, 200); return; }}
-    var m = Math.floor(remaining / 60);
-    var s = remaining % 60;
-    el.textContent = (m < 10 ? '0' : '') + m + ':' + (s < 10 ? '0' : '') + s;
-    if (remaining > 0) {{
-      remaining--;
-      setTimeout(tick, 1000);
-    }} else {{
-      el.textContent = "00:00 \u2014 Time\u2019s up!";
-      el.parentElement.style.color = '#e74c3c';
-    }}
-  }}
-  tick();
-}})();
-</script>
-"""
+def _fmt_time(seconds: float) -> str:
+    seconds = max(0, int(seconds))
+    return f"⏱ {seconds // 60:02d}:{seconds % 60:02d}"
 
 
 # ---------------------------------------------------------------------------
 # Event handlers
 #
-# Output contract (9 values, used by load + next + finish):
+# Full output contract (10 values):
 #   state, question_html, radio,
 #   btn_submit, btn_next, btn_finish, btn_summary,
-#   summary_html, timer_html
+#   summary_html, timer_display, btn_restart
 # ---------------------------------------------------------------------------
-
-_N = 9  # number of full-view outputs
 
 
 def _blank() -> tuple:
-    """Return a fully-reset 9-output tuple (no quiz loaded)."""
+    """Return a fully-reset 10-output tuple (no quiz loaded)."""
     return (
         _initial_state(),
         _no_quiz_html(),
@@ -240,7 +212,8 @@ def _blank() -> tuple:
         gr.update(visible=False),  # btn_finish
         gr.update(visible=False),  # btn_summary
         gr.update(value="", visible=False),  # summary_html
-        gr.update(value="", visible=False),  # timer_html
+        gr.update(value="", visible=False),  # timer_display
+        gr.update(visible=False),  # btn_restart
     )
 
 
@@ -254,11 +227,17 @@ def on_load_quiz(name: str, mode: str) -> tuple:
 
     state = _initial_state()
     state["quiz"] = quiz
+    state["quiz_name"] = name
     state["mode"] = mode.lower()
     state["answers"] = [None] * len(quiz.get("questions", []))
 
     is_exam = state["mode"] == "exam"
     exam_info = quiz.get("exam_info", {})
+    limit_seconds = exam_info.get("time_limit_minutes", 30) * 60
+
+    if is_exam:
+        state["start_time"] = time.time()
+        state["limit_seconds"] = limit_seconds
 
     return (
         state,
@@ -269,18 +248,34 @@ def on_load_quiz(name: str, mode: str) -> tuple:
         gr.update(visible=is_exam),  # btn_finish: exam only
         gr.update(visible=False),  # btn_summary
         gr.update(value="", visible=False),  # summary_html
-        gr.update(
-            value=_timer_html(exam_info.get("time_limit_minutes", 30)),
-            visible=is_exam,
-        ),
+        gr.update(value=_fmt_time(limit_seconds), visible=is_exam),  # timer: show start time
+        gr.update(visible=False),  # btn_restart
     )
+
+
+def on_timer_tick(state: dict) -> tuple:
+    """Update the countdown display every second (exam mode only).
+
+    Returns (timer_display update, state).  State is returned so the
+    timer can mark itself inactive when time runs out.
+    """
+    if state.get("mode") != "exam" or state.get("start_time") is None:
+        return gr.update(), state
+
+    elapsed = time.time() - state["start_time"]
+    remaining = state["limit_seconds"] - elapsed
+
+    if remaining <= 0:
+        state = {**state, "start_time": None}  # deactivate
+        return gr.update(value="⏱ 00:00 — Time's up!", visible=True), state
+
+    return gr.update(value=_fmt_time(remaining), visible=True), state
 
 
 def on_submit(state: dict, choice: str | None) -> tuple:
     """Practice mode: record answer, show immediate feedback.
 
     6 outputs: state, question_html, radio, btn_submit, btn_next, btn_summary
-    (timer and btn_finish are exam-only and untouched here)
     """
     if not state.get("quiz") or choice is None:
         return state, gr.update(), gr.update(), gr.update(), gr.update(), gr.update()
@@ -318,16 +313,18 @@ def on_next(state: dict, choice: str | None) -> tuple:
 
     # Exam: auto-finish when all questions answered
     if is_exam and is_done:
+        state["start_time"] = None  # stop timer
         return (
             state,
-            gr.update(value="", visible=False),  # hide question
-            gr.update(choices=[], visible=False),  # hide radio
+            gr.update(value="", visible=False),
+            gr.update(choices=[], visible=False),
             gr.update(visible=False),  # btn_submit
             gr.update(visible=False),  # btn_next
             gr.update(visible=False),  # btn_finish
             gr.update(visible=False),  # btn_summary
             gr.update(value=_debrief_html(state), visible=True),
             gr.update(value="", visible=False),  # hide timer
+            gr.update(visible=True),  # btn_restart
         )
 
     return (
@@ -339,13 +336,15 @@ def on_next(state: dict, choice: str | None) -> tuple:
         gr.update(visible=is_exam),  # btn_finish: always in exam
         gr.update(visible=False),  # btn_summary
         gr.update(value="", visible=False),  # summary_html
-        gr.update(),  # timer: leave as-is
+        gr.update(),  # timer: leave as-is (still ticking)
+        gr.update(visible=False),  # btn_restart
     )
 
 
 def on_finish(state: dict, choice: str | None) -> tuple:
     """Exam mode: record current answer (if any) and show full debrief."""
     _record_answer(state, choice)
+    state["start_time"] = None  # stop timer
     return (
         state,
         gr.update(value="", visible=False),
@@ -356,12 +355,18 @@ def on_finish(state: dict, choice: str | None) -> tuple:
         gr.update(visible=False),  # btn_summary
         gr.update(value=_debrief_html(state), visible=True),
         gr.update(value="", visible=False),  # hide timer
+        gr.update(visible=True),  # btn_restart
     )
 
 
-def on_show_results(state: dict) -> gr.update:
-    """Practice mode: show debrief after the last question."""
-    return gr.update(value=_debrief_html(state), visible=True)
+def on_show_results(state: dict) -> tuple:
+    """Practice mode: show debrief after the last question (2 outputs)."""
+    return gr.update(value=_debrief_html(state), visible=True), gr.update(visible=True)
+
+
+def on_restart(state: dict, mode: str) -> tuple:
+    """Restart the current quiz from scratch with the same mode."""
+    return on_load_quiz(state.get("quiz_name", ""), mode)
 
 
 # ---------------------------------------------------------------------------
@@ -392,7 +397,7 @@ def build_ui() -> gr.Blocks:
             quiz_dropdown = gr.Dropdown(choices=available, label="Select quiz", scale=3)
             btn_load = gr.Button("▶ Load", variant="primary", scale=1)
 
-        timer_html = gr.HTML(visible=False)
+        timer_display = gr.Markdown(value="", visible=False)
         question_html = gr.HTML(_no_quiz_html())
         radio = gr.Radio(choices=[], label="Your answer", interactive=True)
 
@@ -403,8 +408,9 @@ def build_ui() -> gr.Blocks:
             btn_summary = gr.Button("Show Results", variant="secondary", visible=False)
 
         summary_html = gr.HTML(visible=False)
+        btn_restart = gr.Button("🔄 Restart Quiz", variant="secondary", visible=False)
 
-        # Full 9-output list shared by load / next / finish
+        # Full 10-output list shared by load / next / finish / restart
         _all = [
             state,
             question_html,
@@ -414,11 +420,19 @@ def build_ui() -> gr.Blocks:
             btn_finish,
             btn_summary,
             summary_html,
-            timer_html,
+            timer_display,
+            btn_restart,
         ]
 
         btn_load.click(on_load_quiz, inputs=[quiz_dropdown, mode_radio], outputs=_all)
         quiz_dropdown.change(on_load_quiz, inputs=[quiz_dropdown, mode_radio], outputs=_all)
+
+        # Countdown ticker — fires every second, updates display + deactivates on 00:00
+        gr.Timer(value=1).tick(
+            on_timer_tick,
+            inputs=[state],
+            outputs=[timer_display, state],
+        )
 
         # Practice: Submit → feedback; Next → advance
         btn_submit.click(
@@ -431,8 +445,15 @@ def build_ui() -> gr.Blocks:
         # Exam: Finish records last answer and shows debrief
         btn_finish.click(on_finish, inputs=[state, radio], outputs=_all)
 
-        # Practice: Show Results after last question
-        btn_summary.click(on_show_results, inputs=[state], outputs=[summary_html])
+        # Practice: Show Results after last question (2 outputs)
+        btn_summary.click(
+            on_show_results,
+            inputs=[state],
+            outputs=[summary_html, btn_restart],
+        )
+
+        # Restart: reload same quiz + mode from scratch
+        btn_restart.click(on_restart, inputs=[state, mode_radio], outputs=_all)
 
     return demo
 
